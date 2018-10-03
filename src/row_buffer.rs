@@ -1,14 +1,15 @@
 use std::collections::VecDeque;
 
-enum DataType {
+#[derive(Clone)]
+pub enum DataType {
     INTEGER,
     REAL,
     TEXT,
     BLOB
 }
 
-#[derive(Debug)]
-enum Data {
+#[derive(Debug, PartialEq)]
+pub enum Data {
     Integer(i64),
     Real(f64),
     Text(String),
@@ -22,7 +23,7 @@ pub struct RowBuffer {
 }
 
 impl RowBuffer {
-    fn new(types: Vec<DataType>, row_capacity: usize) -> RowBuffer {
+    pub fn new(types: Vec<DataType>, row_capacity: usize) -> RowBuffer {
         let capacity = types.len() * row_capacity;
         return RowBuffer {
             types: types,
@@ -31,11 +32,11 @@ impl RowBuffer {
         }
     }
 
-    fn full(&self) -> bool {
+    pub fn is_full(&self) -> bool {
         return self.num_rows() == self.max_rows;
     }
 
-    fn empty(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         return self.data.len() == 0;
     }
 
@@ -43,8 +44,12 @@ impl RowBuffer {
         return self.data.len() / self.types.len();
     }
 
-    fn pop_row(&mut self) -> Vec<Data> {
+    pub fn pop_row(&mut self) -> Vec<Data> {
         return self.data.drain(0..self.types.len()).collect();
+    }
+
+    pub fn clear(&mut self) {
+        self.data.clear();
     }
 
     fn get_row(&self, row: usize) -> Vec<&Data> {
@@ -58,6 +63,7 @@ impl RowBuffer {
     }
 
     fn write_value(&mut self, d: Data) {
+        debug_assert!(!self.is_full());
         match self.types[self.data.len() % self.types.len()] {
             DataType::INTEGER => { debug_assert_matches!(d, Data::Integer(_)); },
             DataType::REAL => { debug_assert_matches!(d, Data::Real(_)); },
@@ -66,6 +72,22 @@ impl RowBuffer {
         };
         
         self.data.push_back(d);
+    }
+
+    pub fn write_values(&mut self, data: Vec<Data>) {
+        debug_assert!(data.len() == self.types.len());
+        debug_assert!(!self.is_full());
+
+        for d in data {
+            match self.types[self.data.len() % self.types.len()] {
+                DataType::INTEGER => { debug_assert_matches!(d, Data::Integer(_)); },
+                DataType::REAL => { debug_assert_matches!(d, Data::Real(_)); },
+                DataType::TEXT => { debug_assert_matches!(d, Data::Text(_)); },
+                DataType::BLOB => { debug_assert_matches!(d, Data::Blob(_)); }
+            };
+
+            self.data.push_back(d);
+        }
     }
 
     fn iter(&self) -> RowBufferIterator {
@@ -112,13 +134,13 @@ mod tests {
         let mut rb = RowBuffer::new(vec![DataType::INTEGER], 3);
         
         rb.write_value(Data::Integer(5));
-        assert!(!rb.full());
+        assert!(!rb.is_full());
 
         rb.write_value(Data::Integer(6));
-        assert!(!rb.full());
+        assert!(!rb.is_full());
 
         rb.write_value(Data::Integer(7));
-        assert!(rb.full());
+        assert!(rb.is_full());
     }
 
     #[test]
@@ -127,15 +149,15 @@ mod tests {
         
         rb.write_value(Data::Integer(5));
         rb.write_value(Data::Real(5.5));
-        assert!(!rb.full());
+        assert!(!rb.is_full());
 
         rb.write_value(Data::Integer(6));
         rb.write_value(Data::Real(5.5));
-        assert!(!rb.full());
+        assert!(!rb.is_full());
 
         rb.write_value(Data::Integer(7));
         rb.write_value(Data::Real(5.5));
-        assert!(rb.full());
+        assert!(rb.is_full());
     }
 
     #[test]
@@ -149,19 +171,19 @@ mod tests {
         rb.write_value(Data::Real(5.5));
         rb.write_value(Data::Text(String::from("Hello!")));
         rb.write_value(Data::Blob(vec![5, 23, 95]));
-        assert!(!rb.full());
+        assert!(!rb.is_full());
 
         rb.write_value(Data::Integer(6));
         rb.write_value(Data::Real(5.5));
         rb.write_value(Data::Text(String::from("Hello!")));
         rb.write_value(Data::Blob(vec![5, 23, 95]));
-        assert!(!rb.full());
+        assert!(!rb.is_full());
 
         rb.write_value(Data::Integer(7));
         rb.write_value(Data::Real(5.5));
         rb.write_value(Data::Text(String::from("Hello!")));
         rb.write_value(Data::Blob(vec![5, 23, 95]));
-        assert!(rb.full());
+        assert!(rb.is_full());
     }
 
     #[test]
@@ -175,19 +197,19 @@ mod tests {
         rb.write_value(Data::Real(5.5));
         rb.write_value(Data::Text(String::from("Hello!")));
         rb.write_value(Data::Blob(vec![89, 23, 95]));
-        assert!(!rb.full());
+        assert!(!rb.is_full());
 
         rb.write_value(Data::Integer(6));
         rb.write_value(Data::Real(6.5));
         rb.write_value(Data::Text(String::from("World!")));
         rb.write_value(Data::Blob(vec![5, 27, 95]));
-        assert!(!rb.full());
+        assert!(!rb.is_full());
 
         rb.write_value(Data::Integer(7));
         rb.write_value(Data::Real(7.5));
         rb.write_value(Data::Text(String::from("Testing!")));
         rb.write_value(Data::Blob(vec![5, 23, 96]));
-        assert!(rb.full());
+        assert!(rb.is_full());
 
         let mut num_iter = 0;
         for (idx, row) in rb.iter().enumerate() {
@@ -241,25 +263,25 @@ mod tests {
         rb.write_value(Data::Real(5.5));
         rb.write_value(Data::Text(String::from("Hello!")));
         rb.write_value(Data::Blob(vec![89, 23, 95]));
-        assert!(!rb.full());
+        assert!(!rb.is_full());
 
         rb.write_value(Data::Integer(6));
         rb.write_value(Data::Real(6.5));
         rb.write_value(Data::Text(String::from("World!")));
         rb.write_value(Data::Blob(vec![5, 27, 95]));
-        assert!(!rb.full());
+        assert!(!rb.is_full());
 
         rb.write_value(Data::Integer(7));
         rb.write_value(Data::Real(7.5));
         rb.write_value(Data::Text(String::from("Testing!")));
         rb.write_value(Data::Blob(vec![5, 23, 96]));
-        assert!(rb.full());
+        assert!(rb.is_full());
 
-        assert!(!rb.empty());
+        assert!(!rb.is_empty());
         let row1 = rb.pop_row();
         let row2 = rb.pop_row();
         let row3 = rb.pop_row();
-        assert!(rb.empty());
+        assert!(rb.is_empty());
         let rows = vec![row1, row2, row3];
 
         for (idx, row) in rows.into_iter().enumerate() {

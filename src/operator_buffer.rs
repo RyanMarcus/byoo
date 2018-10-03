@@ -1,22 +1,22 @@
 use std::sync::mpsc::{Sender, Receiver, channel};
 use std::collections::VecDeque;
+use row_buffer::{Data, DataType, RowBuffer};
 
-type Data = u64;
 
 pub struct OperatorReadBuffer {
-    buffers: VecDeque<Vec<Data>>,
-    send: Sender<Vec<Data>>,
-    recv: Receiver<Vec<Data>>
+    buffers: VecDeque<RowBuffer>,
+    send: Sender<RowBuffer>,
+    recv: Receiver<RowBuffer>
 }
 
 pub struct OperatorWriteBuffer {
-    buffers: VecDeque<Vec<Data>>,
-    send: Sender<Vec<Data>>,
-    recv: Receiver<Vec<Data>>
+    buffers: VecDeque<RowBuffer>,
+    send: Sender<RowBuffer>,
+    recv: Receiver<RowBuffer>
 }
 
 impl OperatorReadBuffer {
-    fn new(send: Sender<Vec<Data>>, recv: Receiver<Vec<Data>>)
+    fn new(send: Sender<RowBuffer>, recv: Receiver<RowBuffer>)
            -> OperatorReadBuffer {        
         return OperatorReadBuffer {
             buffers: VecDeque::new(),
@@ -25,7 +25,7 @@ impl OperatorReadBuffer {
         };
     }
 
-    fn data(&mut self) -> Option<&[Data]> {
+    fn data(&mut self) -> Option<&mut RowBuffer> {
         if self.buffers.is_empty() {
             match self.recv.recv() {
                 Ok(r) => { self.buffers.push_back(r); }
@@ -33,7 +33,7 @@ impl OperatorReadBuffer {
             };
         }
 
-        return Some(self.buffers.front().unwrap());
+        return Some(self.buffers.front_mut().unwrap());
     }
 
     fn next(&mut self) {
@@ -46,13 +46,14 @@ impl OperatorReadBuffer {
 
 impl OperatorWriteBuffer {
     fn new(num_buffers: usize, buffer_size: usize,
-           send: Sender<Vec<Data>>, recv: Receiver<Vec<Data>>)
+           types: Vec<DataType>,
+           send: Sender<RowBuffer>, recv: Receiver<RowBuffer>)
            -> OperatorWriteBuffer {
 
         let mut buffers = VecDeque::new();
 
         for _ in 0..num_buffers {
-            buffers.push_back(Vec::with_capacity(buffer_size));
+            buffers.push_back(RowBuffer::new(types.clone(), buffer_size));
         }
 
         
@@ -81,24 +82,23 @@ impl OperatorWriteBuffer {
         }
     }
 
-    fn get_remaining_capacity(&self) -> usize {
-        if let Some(f) = self.buffers.front() {
-            return f.capacity() - f.len();
+    fn have_full_front(&self) -> bool {
+        if let Some(b) = self.buffers.front() {
+            return b.is_full();
+        } else {
+            return false;
         }
-
-        return 0;
     }
     
-    pub fn write(&mut self, data: &[Data]) {
+    pub fn write(&mut self, row: Vec<Data>) {
         self.ensure_buffer();
 
-        let current_capacity = self.get_remaining_capacity();
-        if current_capacity < data.len() {
+        if self.have_full_front() {
             self.send_buffer();
             self.ensure_buffer();
         }
 
-        self.buffers.front_mut().unwrap().extend_from_slice(data);
+        self.buffers.front_mut().unwrap().write_values(row);
     }
 
     pub fn flush(&mut self) {
@@ -107,13 +107,15 @@ impl OperatorWriteBuffer {
 
 }
 
-fn make_buffer_pair(num_buffers: usize, buffer_size: usize)
+fn make_buffer_pair(num_buffers: usize, buffer_size: usize,
+                    types: Vec<DataType>)
                     -> (OperatorReadBuffer, OperatorWriteBuffer) {
     let (s_r2w, r_r2w) = channel();
     let (s_w2r, r_w2r) = channel();
 
     let read = OperatorReadBuffer::new(s_r2w, r_w2r);
     let write = OperatorWriteBuffer::new(num_buffers, buffer_size,
+                                         types,
                                          s_w2r, r_r2w);
 
     return (read, write);
@@ -123,64 +125,77 @@ fn make_buffer_pair(num_buffers: usize, buffer_size: usize)
 mod tests {
     use operator_buffer::make_buffer_pair;
     use std::thread;
+    use row_buffer::{Data, DataType};
+
 
     #[test]
     fn can_construct() {
-        let (_, _) = make_buffer_pair(5, 10);
+        let (_, _) = make_buffer_pair(5, 10, vec![DataType::INTEGER]);
     }
 
     #[test]
     fn can_send_and_recv() {
-        let (mut r, mut w) = make_buffer_pair(5, 10);
+        let (mut r, mut w) = make_buffer_pair(5, 10, vec![DataType::INTEGER]);
 
-        let data = &vec![5, 6, 7, 8];
-        w.write(data);
+        w.write(vec![Data::Integer(5)]);
+        w.write(vec![Data::Integer(6)]);
+        w.write(vec![Data::Integer(-100)]);
         w.flush();
 
         let read_data = r.data().unwrap();
-        assert_eq!(read_data, &data[..]);
+        assert_eq!(read_data.pop_row()[0], Data::Integer(5));
+        assert_eq!(read_data.pop_row()[0], Data::Integer(6));
+        assert_eq!(read_data.pop_row()[0], Data::Integer(-100));
     }
 
     #[test]
     fn can_send_and_recv_multibuf() {
-        let (mut r, mut w) = make_buffer_pair(5, 9);
+        let (mut r, mut w) = make_buffer_pair(5, 3,
+                                              vec![DataType::INTEGER]);
 
-        let data1 = &vec![5, 6, 7, 8];
-        let data2 = &vec![1, 3, 4, 9];
-        w.write(data1);
-        w.write(data2);
-        w.write(data1);
-        w.write(data2);
+        w.write(vec![Data::Integer(5)]);
+        w.write(vec![Data::Integer(6)]);
+        w.write(vec![Data::Integer(-100)]);
+        w.write(vec![Data::Integer(5)]);
+        w.write(vec![Data::Integer(6)]);
+        w.write(vec![Data::Integer(-100)]);
         w.flush();
 
         drop(w);
 
-        let mut data = Vec::new();
-        loop {
-            if let Some(chunk) = r.data() {
-                data.extend_from_slice(chunk);
-            } else {
-                break;
-            }
-            
-            r.next();
+        {
+            let read_data = r.data().unwrap();
+            assert_eq!(read_data.pop_row()[0], Data::Integer(5));
+            assert_eq!(read_data.pop_row()[0], Data::Integer(6));
+            assert_eq!(read_data.pop_row()[0], Data::Integer(-100));
+            assert!(read_data.is_empty());
         }
 
-        
-        assert_eq!(data, [5,6,7,8,1,3,4,9,
-                          5,6,7,8,1,3,4,9]);
+        r.next();
+
+        {
+            let read_data2 = r.data().unwrap();
+            assert_eq!(read_data2.pop_row()[0], Data::Integer(5));
+            assert_eq!(read_data2.pop_row()[0], Data::Integer(6));
+            assert_eq!(read_data2.pop_row()[0], Data::Integer(-100));
+        }
     }
 
     #[test]
     fn thread_test() {
         let num_sends = 100000;
-        let (mut r, mut w) = make_buffer_pair(5, 2);
+        let (mut r, mut w) = make_buffer_pair(5, 10,
+                                              vec![DataType::INTEGER,
+                                                   DataType::INTEGER,
+                                                   DataType::INTEGER]);
 
         // spawn a writer
         let writer_handler = thread::spawn(move || {
             for idx in 0..num_sends {
-                let data = vec![idx, idx + 1, idx + 2];
-                w.write(&data);
+                let data = vec![Data::Integer(idx),
+                                Data::Integer(idx + 1),
+                                Data::Integer(idx + 2)];
+                w.write(data);
             }
 
             w.flush();
@@ -189,8 +204,16 @@ mod tests {
         let read_handler = thread::spawn(move || {
             let mut data = Vec::new();
             loop {
-                if let Some(chunk) = r.data() {
-                    data.extend_from_slice(chunk);
+                if let Some(rb) = r.data() {
+                    while !rb.is_empty() {
+                        for d in rb.pop_row() {
+                            if let Data::Integer(i) = d {
+                                data.push(i);
+                            } else {
+                                panic!("Invalid datatype from writer!");
+                            }
+                        }
+                    }
                 } else {
                     break;
                 }
