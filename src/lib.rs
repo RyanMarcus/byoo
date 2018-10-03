@@ -1,6 +1,9 @@
+#[macro_use]
+extern crate matches;
 extern crate byteorder;
 
 mod operator_buffer;
+mod row_buffer;
 mod file_scan;
 
 #[cfg(test)]

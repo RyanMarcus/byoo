@@ -5,3 +5,4 @@ authors = ["Ryan Marcus <ryan@rmarcus.info>"]
 
 [dependencies]
 byteorder = "1"
+matches = "0.1.8"
