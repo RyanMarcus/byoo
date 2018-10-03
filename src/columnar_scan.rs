@@ -2,14 +2,15 @@ use operator_buffer::OperatorWriteBuffer;
 use std::fs::File;
 use std::io::{Seek, SeekFrom, BufReader};
 use byteorder::{ReadBytesExt, LittleEndian};
+use data::{DataType};
 
-struct FileScan {
+struct ColumnarScan {
     filename: String,
     buffer: OperatorWriteBuffer,
     col_idx: usize
 }
 
-impl FileScan {
+impl ColumnarScan {
     pub fn new(filename: String, col_idx: usize,
                buffer: OperatorWriteBuffer) -> FileScan {
 
@@ -43,10 +44,14 @@ impl FileScan {
         reader.read_u64_into::<LittleEndian>(&mut offsets).unwrap();
 
 
-        let datatype = datatypes[self.col_idx];
+        let datatype = DataType::from_code(datatypes[self.col_idx]);
         let offset = offsets[self.col_idx];
-
         reader.seek(SeekFrom::Current(offset as i64)).unwrap();
+
+        for _ in 0..num_rows {
+            let data = datatype.read_item(&mut reader).unwrap();
+            self.buffer.write(vec![data]);
+        }
         
     }
 }
