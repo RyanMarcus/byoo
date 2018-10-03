@@ -12,9 +12,9 @@ struct ColumnarScan {
 
 impl ColumnarScan {
     pub fn new(filename: String, col_idx: usize,
-               buffer: OperatorWriteBuffer) -> FileScan {
+               buffer: OperatorWriteBuffer) -> ColumnarScan {
 
-        return FileScan {
+        return ColumnarScan {
             filename, col_idx, buffer
         };
     }
