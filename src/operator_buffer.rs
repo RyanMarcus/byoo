@@ -1,6 +1,7 @@
 use std::sync::mpsc::{Sender, Receiver, channel};
 use std::collections::VecDeque;
-use row_buffer::{Data, DataType, RowBuffer};
+use row_buffer::{RowBuffer};
+use data::{Data, DataType};
 
 
 pub struct OperatorReadBuffer {
@@ -125,8 +126,7 @@ fn make_buffer_pair(num_buffers: usize, buffer_size: usize,
 mod tests {
     use operator_buffer::make_buffer_pair;
     use std::thread;
-    use row_buffer::{Data, DataType};
-
+    use data::{Data, DataType};
 
     #[test]
     fn can_construct() {

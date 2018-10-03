@@ -1,20 +1,5 @@
 use std::collections::VecDeque;
-
-#[derive(Clone)]
-pub enum DataType {
-    INTEGER,
-    REAL,
-    TEXT,
-    BLOB
-}
-
-#[derive(Debug, PartialEq)]
-pub enum Data {
-    Integer(i64),
-    Real(f64),
-    Text(String),
-    Blob(Vec<u8>)
-}
+use data::{Data, DataType};
 
 pub struct RowBuffer {
     types: Vec<DataType>,
@@ -127,7 +112,8 @@ impl <'a> Iterator for RowBufferIterator<'a> {
 #[cfg(test)]
 #[cfg(test)]
 mod tests {
-    use row_buffer::{Data, DataType, RowBuffer};
+    use row_buffer::RowBuffer;
+    use data::{Data, DataType};
 
     #[test]
     fn fills() {

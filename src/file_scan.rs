@@ -6,34 +6,47 @@ use byteorder::{ReadBytesExt, LittleEndian};
 struct FileScan {
     filename: String,
     buffer: OperatorWriteBuffer,
-    from: usize,
-    length: usize
+    col_idx: usize
 }
 
 impl FileScan {
-    pub fn new(filename: String, from: usize, length: usize,
+    pub fn new(filename: String, col_idx: usize,
                buffer: OperatorWriteBuffer) -> FileScan {
 
         return FileScan {
-            filename, from, length, buffer
+            filename, col_idx, buffer
         };
     }
 
     pub fn start(mut self) {
         let f = File::open(self.filename).unwrap();
         let mut reader = BufReader::new(f);
-        reader.seek(SeekFrom::Start(self.from as u64 * 8)).unwrap();
 
-        let mut data: Vec<u64> = Vec::with_capacity(128);
+        // read the format code
+        let format_code = reader.read_u8().unwrap();
+
+        assert_eq!(format_code, 1); // column order
+
+        // read the number of columns
+        let num_columns = reader.read_u16::<LittleEndian>().unwrap() as usize;
+        assert!(self.col_idx < num_columns);
+
+        // read the number of rows
+        let num_rows = reader.read_u64::<LittleEndian>().unwrap();
         
-        for _ in 0..self.length {
-            data.push(reader.read_u64::<LittleEndian>().unwrap());
-            if data.len() == data.capacity() {
-                self.buffer.write(&data);
-                data.clear();
-            }
-        }
+        // next is the column data types
+        let mut datatypes = Vec::with_capacity(num_columns);
+        reader.read_u16_into::<LittleEndian>(&mut datatypes).unwrap();
 
-        self.buffer.write(&data);
+        // next is the column offsets
+        let mut offsets = Vec::with_capacity(num_columns);
+        reader.read_u64_into::<LittleEndian>(&mut offsets).unwrap();
+
+
+        let datatype = datatypes[self.col_idx];
+        let offset = offsets[self.col_idx];
+
+        reader.seek(SeekFrom::Current(offset as i64)).unwrap();
+        
     }
 }
