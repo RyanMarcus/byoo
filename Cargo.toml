@@ -1,0 +1,7 @@
+[package]
+name = "byoo"
+version = "0.1.0"
+authors = ["Ryan Marcus <ryan@rmarcus.info>"]
+
+[dependencies]
+byteorder = "1"
