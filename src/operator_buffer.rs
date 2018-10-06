@@ -1,6 +1,6 @@
 use std::sync::mpsc::{Sender, Receiver, channel};
 use std::collections::VecDeque;
-use row_buffer::{RowBuffer};
+use row_buffer::{RowBuffer, RowBufferIterator};
 use data::{Data, DataType};
 
 
@@ -37,12 +37,47 @@ impl OperatorReadBuffer {
         return Some(self.buffers.front_mut().unwrap());
     }
 
-    fn next(&mut self) {
+    fn progress(&mut self) {
         if let Some(mut buffer_to_return) = self.buffers.pop_front() {
             buffer_to_return.clear();
             self.send.send(buffer_to_return);
         }
     }
+}
+
+macro_rules! iterate_buffer {
+    ($op_buf:expr, $row_var:ident, $loop_body: block) => {
+        loop {
+            {
+                let next_rb = match ($op_buf).data() {
+                    Some(rb) => rb,
+                    None => { break; }
+                };
+
+                for $row_var in next_rb.iter() {
+                    $loop_body
+                }
+            }
+            ($op_buf).progress();
+        }
+    };
+    ($op_buf:expr, $idx_var:ident, $row_var:ident, $loop_body: block) => {
+        let mut count = 0;
+        loop {
+            {
+                let next_rb = match ($op_buf).data() {
+                    Some(rb) => rb,
+                    None => { break; }
+                };
+                for $row_var in next_rb.iter() {
+                    let $idx_var = count;
+                    $loop_body;
+                    count += 1;
+                }
+            }
+            ($op_buf).progress();
+        }
+    };
 }
 
 impl OperatorWriteBuffer {
@@ -134,18 +169,23 @@ mod tests {
     }
 
     #[test]
-    fn can_send_and_recv() {
+    fn can_use_iter() {
         let (mut r, mut w) = make_buffer_pair(5, 10, vec![DataType::INTEGER]);
 
         w.write(vec![Data::Integer(5)]);
         w.write(vec![Data::Integer(6)]);
         w.write(vec![Data::Integer(-100)]);
         w.flush();
+        drop(w);
 
-        let read_data = r.data().unwrap();
-        assert_eq!(read_data.pop_row()[0], Data::Integer(5));
-        assert_eq!(read_data.pop_row()[0], Data::Integer(6));
-        assert_eq!(read_data.pop_row()[0], Data::Integer(-100));
+        iterate_buffer!(r, idx, row, {
+            match idx {
+                0 => { assert_eq!(row[0], Data::Integer(5)); }
+                1 => { assert_eq!(row[0], Data::Integer(6)); }
+                2 => { assert_eq!(row[0], Data::Integer(-100)); }
+                _ => { panic!("Too many values!"); }
+            }
+        });
     }
 
     #[test]
@@ -157,30 +197,26 @@ mod tests {
         w.write(vec![Data::Integer(6)]);
         w.write(vec![Data::Integer(-100)]);
         w.write(vec![Data::Integer(5)]);
-        w.write(vec![Data::Integer(6)]);
+        w.write(vec![Data::Integer(7)]);
         w.write(vec![Data::Integer(-100)]);
         w.flush();
 
         drop(w);
 
-        {
-            let read_data = r.data().unwrap();
-            assert_eq!(read_data.pop_row()[0], Data::Integer(5));
-            assert_eq!(read_data.pop_row()[0], Data::Integer(6));
-            assert_eq!(read_data.pop_row()[0], Data::Integer(-100));
-            assert!(read_data.is_empty());
-        }
-
-        r.next();
-
-        {
-            let read_data2 = r.data().unwrap();
-            assert_eq!(read_data2.pop_row()[0], Data::Integer(5));
-            assert_eq!(read_data2.pop_row()[0], Data::Integer(6));
-            assert_eq!(read_data2.pop_row()[0], Data::Integer(-100));
-        }
+        iterate_buffer!(r, idx, row, {
+            match idx {
+                0 => { assert_eq!(row[0], Data::Integer(5)); }
+                1 => { assert_eq!(row[0], Data::Integer(6)); }
+                2 => { assert_eq!(row[0], Data::Integer(-100)); }
+                3 => { assert_eq!(row[0], Data::Integer(5)); }
+                4 => { assert_eq!(row[0], Data::Integer(7)); }
+                5 => { assert_eq!(row[0], Data::Integer(-100)); }
+                _ => { panic!("Too many values!"); }
+            }
+        });
     }
 
+    
     #[test]
     fn thread_test() {
         let num_sends = 100000;
@@ -203,24 +239,16 @@ mod tests {
 
         let read_handler = thread::spawn(move || {
             let mut data = Vec::new();
-            loop {
-                if let Some(rb) = r.data() {
-                    while !rb.is_empty() {
-                        for d in rb.pop_row() {
-                            if let Data::Integer(i) = d {
-                                data.push(i);
-                            } else {
-                                panic!("Invalid datatype from writer!");
-                            }
-                        }
-                    }
-                } else {
-                    break;
-                }
-                
-                r.next();
-            }
 
+            iterate_buffer!(r, row, {
+                for d in row {
+                    if let Data::Integer(i) = row[0] {
+                        data.push(i);
+                    } else {
+                        panic!("Invalid datatype from writer!");
+                    } 
+                }
+            });
             data
         });
 
@@ -230,5 +258,6 @@ mod tests {
         assert_eq!(data.len(), (num_sends*3) as usize);
         
     }
+     
 
 }
