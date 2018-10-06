@@ -26,7 +26,7 @@ impl OperatorReadBuffer {
         };
     }
 
-    fn data(&mut self) -> Option<&mut RowBuffer> {
+    pub fn data(&mut self) -> Option<&mut RowBuffer> {
         if self.buffers.is_empty() {
             match self.recv.recv() {
                 Ok(r) => { self.buffers.push_back(r); }
@@ -37,7 +37,7 @@ impl OperatorReadBuffer {
         return Some(self.buffers.front_mut().unwrap());
     }
 
-    fn progress(&mut self) {
+    pub fn progress(&mut self) {
         if let Some(mut buffer_to_return) = self.buffers.pop_front() {
             buffer_to_return.clear();
             self.send.send(buffer_to_return);
@@ -143,9 +143,9 @@ impl OperatorWriteBuffer {
 
 }
 
-fn make_buffer_pair(num_buffers: usize, buffer_size: usize,
-                    types: Vec<DataType>)
-                    -> (OperatorReadBuffer, OperatorWriteBuffer) {
+pub fn make_buffer_pair(num_buffers: usize, buffer_size: usize,
+                        types: Vec<DataType>)
+                        -> (OperatorReadBuffer, OperatorWriteBuffer) {
     let (s_r2w, r_r2w) = channel();
     let (s_w2r, r_w2r) = channel();
 

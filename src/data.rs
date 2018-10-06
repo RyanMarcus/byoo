@@ -9,7 +9,7 @@ pub enum DataType {
     BLOB
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Data {
     Integer(i64),
     Real(f64),
