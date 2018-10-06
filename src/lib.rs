@@ -1,6 +1,7 @@
 #[macro_use]
 extern crate matches;
 extern crate byteorder;
+extern crate csv;
 
 mod data;
 
@@ -10,6 +11,7 @@ mod operator_buffer;
 mod row_buffer;
 mod columnar_scan;
 mod operator;
+
 
 #[cfg(test)]
 mod tests {

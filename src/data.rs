@@ -64,4 +64,13 @@ impl DataType {
             }
         };
     }
+
+    pub fn from_string(&self, data: String) -> Data {
+        return match self {
+            &DataType::INTEGER => Data::Integer(data.parse::<i64>().unwrap()),
+            &DataType::REAL => Data::Real(data.parse::<f64>().unwrap()),
+            &DataType::TEXT => Data::Text(data),
+            &DataType::BLOB => Data::Blob(data.into_bytes())
+        }
+    }
 }

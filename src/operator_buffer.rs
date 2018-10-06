@@ -1,6 +1,6 @@
 use std::sync::mpsc::{Sender, Receiver, channel};
 use std::collections::VecDeque;
-use row_buffer::{RowBuffer, RowBufferIterator};
+use row_buffer::{RowBuffer};
 use data::{Data, DataType};
 
 
@@ -13,7 +13,8 @@ pub struct OperatorReadBuffer {
 pub struct OperatorWriteBuffer {
     buffers: VecDeque<RowBuffer>,
     send: Sender<RowBuffer>,
-    recv: Receiver<RowBuffer>
+    recv: Receiver<RowBuffer>,
+    types: Vec<DataType>
 }
 
 impl OperatorReadBuffer {
@@ -96,7 +97,8 @@ impl OperatorWriteBuffer {
         return OperatorWriteBuffer {
             buffers: buffers,
             send: send,
-            recv: recv
+            recv: recv,
+            types: types
         };
     }
 
@@ -135,6 +137,15 @@ impl OperatorWriteBuffer {
         }
 
         self.buffers.front_mut().unwrap().write_values(row);
+    }
+
+    pub fn write_strings(&mut self, row: Vec<String>) {
+        let data: Vec<Data> = row.into_iter().enumerate().map(|(idx, field)| {
+            let dt = &self.types[idx];
+            return dt.from_string(field);
+        }).collect();
+
+        self.write(data);
     }
 
     pub fn flush(&mut self) {
