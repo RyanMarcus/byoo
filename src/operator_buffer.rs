@@ -139,6 +139,17 @@ impl OperatorWriteBuffer {
         self.buffers.front_mut().unwrap().write_values(row);
     }
 
+    pub fn write_many(&mut self, rows: Vec<Data>) {
+        // ensure this is a valid number of data points
+        assert!(rows.len() % self.types.len() == 0);
+
+        // TODO candidate for optimization, since this will do multiple
+        // copies
+        for row in rows.chunks(self.types.len()) {
+            self.write(row.to_vec());
+        }
+    }
+
     pub fn write_strings(&mut self, row: Vec<String>) {
         let data: Vec<Data> = row.into_iter().enumerate().map(|(idx, field)| {
             let dt = &self.types[idx];
@@ -152,6 +163,12 @@ impl OperatorWriteBuffer {
         self.send_buffer();
     }
 
+}
+
+impl Drop for OperatorWriteBuffer {
+    fn drop(&mut self) {
+        self.flush();
+    }
 }
 
 pub fn make_buffer_pair(num_buffers: usize, buffer_size: usize,

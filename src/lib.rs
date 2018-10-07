@@ -2,6 +2,7 @@
 extern crate matches;
 extern crate byteorder;
 extern crate csv;
+extern crate tempfile;
 
 mod data;
 
@@ -9,6 +10,7 @@ mod data;
 mod operator_buffer;
 
 mod row_buffer;
+mod spillable_store;
 mod columnar_scan;
 mod operator;
 

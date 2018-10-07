@@ -7,3 +7,4 @@ authors = ["Ryan Marcus <ryan@rmarcus.info>"]
 byteorder = "1"
 matches = "0.1.8"
 csv = "1"
+tempfile = "3"

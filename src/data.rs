@@ -1,4 +1,4 @@
-use byteorder::{ReadBytesExt, LittleEndian};
+use byteorder::{ByteOrder, ReadBytesExt, LittleEndian};
 use std::io::{BufRead, Error};
 
 #[derive(Clone)]
@@ -16,6 +16,7 @@ pub enum Data {
     Text(String),
     Blob(Vec<u8>)
 }
+
 
 impl DataType {
     pub fn from_code(code: u16) -> DataType {
@@ -71,6 +72,39 @@ impl DataType {
             &DataType::REAL => Data::Real(data.parse::<f64>().unwrap()),
             &DataType::TEXT => Data::Text(data),
             &DataType::BLOB => Data::Blob(data.into_bytes())
+        }
+    }
+}
+
+impl Data {
+    pub fn into_bytes(self) -> Vec<u8> {
+        match self {
+            Data::Integer(i) => {
+                let mut buf = [0; 8];
+                LittleEndian::write_i64(&mut buf, i);
+                return buf.to_vec();
+            },
+
+            Data::Real(f) => {
+                let mut buf = [0; 8];
+                LittleEndian::write_f64(&mut buf, f);
+                return buf.to_vec();
+            },
+
+            Data::Text(s) => {
+                let mut to_r = s.as_bytes().to_vec();
+                to_r.push(0);
+                return to_r;
+            },
+
+            Data::Blob(b) => {
+                let mut buf = [0; 8];
+                LittleEndian::write_u64(&mut buf, b.len() as u64);
+                let mut to_r = buf.to_vec();
+                to_r.extend(b);
+
+                return to_r;
+            }
         }
     }
 }
