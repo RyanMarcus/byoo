@@ -1,1 +1,2 @@
-pub mod columnar_output;
+mod columnar_output;
+pub use operator::output::columnar_output::ColumnarOutput;

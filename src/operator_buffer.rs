@@ -7,7 +7,8 @@ use data::{Data, DataType};
 pub struct OperatorReadBuffer {
     buffers: VecDeque<RowBuffer>,
     send: Sender<RowBuffer>,
-    recv: Receiver<RowBuffer>
+    recv: Receiver<RowBuffer>,
+    types: Vec<DataType>
 }
 
 pub struct OperatorWriteBuffer {
@@ -18,12 +19,14 @@ pub struct OperatorWriteBuffer {
 }
 
 impl OperatorReadBuffer {
-    fn new(send: Sender<RowBuffer>, recv: Receiver<RowBuffer>)
+    fn new(send: Sender<RowBuffer>, recv: Receiver<RowBuffer>, types: Vec<DataType>)
            -> OperatorReadBuffer {        
         return OperatorReadBuffer {
             buffers: VecDeque::new(),
-            send: send,
-            recv: recv
+            send,
+            recv,
+            types
+                
         };
     }
 
@@ -43,6 +46,10 @@ impl OperatorReadBuffer {
             buffer_to_return.clear();
             self.send.send(buffer_to_return);
         }
+    }
+
+    pub fn types(&self) -> &[DataType] {
+        return &self.types;
     }
 }
 
@@ -177,7 +184,7 @@ pub fn make_buffer_pair(num_buffers: usize, buffer_size: usize,
     let (s_r2w, r_r2w) = channel();
     let (s_w2r, r_w2r) = channel();
 
-    let read = OperatorReadBuffer::new(s_r2w, r_w2r);
+    let read = OperatorReadBuffer::new(s_r2w, r_w2r, types.clone());
     let write = OperatorWriteBuffer::new(num_buffers, buffer_size,
                                          types,
                                          s_w2r, r_r2w);

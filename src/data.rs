@@ -1,5 +1,5 @@
 use byteorder::{ByteOrder, ReadBytesExt, LittleEndian};
-use std::io::{BufRead, Error};
+use std::io::{BufRead, Error, ErrorKind};
 
 #[derive(Clone)]
 pub enum DataType {
@@ -28,6 +28,15 @@ impl DataType {
             _ => { panic!("Unknown datatype code"); }
         };
     }
+
+    pub fn to_code(&self) -> u16 {
+        return match &self {
+            DataType::INTEGER => 1,
+            DataType::REAL => 2,
+            DataType::TEXT => 3,
+            DataType::BLOB => 4
+        };
+    }
     
     pub fn read_item<T: BufRead>(&self, reader: &mut T) -> Result<Data, Error> {
         match self {
@@ -45,6 +54,12 @@ impl DataType {
                     return Err(e);
                 }
 
+                if str_buf.len() == 0 {
+                    // it was empty, we hit an EOF.
+                    return Err(Error::new(
+                        ErrorKind::UnexpectedEof, "Could not read string"));
+                }
+                
                 // pop off the null
                 str_buf.pop();
 
@@ -77,6 +92,16 @@ impl DataType {
 }
 
 impl Data {
+
+    pub fn num_bytes(&self) -> usize {
+        return match &self {
+            Data::Integer(_) => 8,
+            Data::Real(_) => 8,
+            Data::Text(s) => s.as_bytes().len() + 1,
+            Data::Blob(b) => 8 + b.len()
+        };
+    }
+    
     pub fn into_bytes(self) -> Vec<u8> {
         match self {
             Data::Integer(i) => {

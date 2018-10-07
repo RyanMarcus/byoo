@@ -6,13 +6,20 @@ use operator_buffer::{OperatorReadBuffer, OperatorWriteBuffer, make_buffer_pair}
 use tempfile::tempfile;
 use std::thread;
 
-struct WritableSpillableStore {
+pub struct WritableSpillableStore {
     data: Vec<Data>,
     types: Vec<DataType>,
     max_size: usize,
     backing_file: File,
     writer: BufWriter<File>,
-    did_spill: bool
+    did_spill: bool,
+    stats: SpillableStoreStats
+}
+
+pub struct SpillableStoreStats {
+    pub rows: usize,
+    pub types: Vec<DataType>,
+    pub col_sizes: Vec<usize>
 }
 
 struct ReadableSpillableStore {
@@ -28,15 +35,25 @@ impl WritableSpillableStore {
         let w = BufWriter::new(f.try_clone().unwrap());
         return WritableSpillableStore {
             data: Vec::with_capacity(max_size / 4),
-            types: types,
+            types: types.clone(),
             max_size: max_size,
             backing_file: f,
             writer: w,
-            did_spill: false
+            did_spill: false,
+            stats: SpillableStoreStats {
+                rows: 0,
+                types: types.clone(),
+                col_sizes: vec![0 ; types.len()]
+            }
         };
     }
 
     pub fn push_row(&mut self, row: Vec<Data>) {
+        self.stats.rows += 1;
+        for (idx, d) in row.iter().enumerate() {
+            self.stats.col_sizes[idx] += d.num_bytes();
+        }
+        
         if self.data.len() + row.len() < self.max_size {
             // it fits in memory
             self.data.extend(row);
@@ -60,7 +77,7 @@ impl WritableSpillableStore {
         return self.did_spill;
     }
 
-    pub fn read(self) -> OperatorReadBuffer {
+    pub fn read(self) -> (SpillableStoreStats, OperatorReadBuffer) {
         let (r, w) = make_buffer_pair(5, 4096, self.types.clone());
         
         let reader = ReadableSpillableStore {
@@ -74,7 +91,7 @@ impl WritableSpillableStore {
             reader.start();
         });
 
-        return r;
+        return (self.stats, r);
     }
 }
 
@@ -127,7 +144,11 @@ mod tests {
         w.push_row(vec![Data::Integer(6)]);
         w.push_row(vec![Data::Integer(7)]);
 
-        let mut r = w.read();
+        let (stats, mut r) = w.read();
+
+        assert_eq!(stats.rows, 3);
+        assert_eq!(stats.col_sizes[0], 3 * 8);
+        
         let mut num_rows = 0;
         iterate_buffer!(r, idx, row, {
             match idx {
@@ -155,7 +176,11 @@ mod tests {
 
         assert!(w.did_spill());
         
-        let mut r = w.read();
+        let (stats, mut r) = w.read();
+
+        assert_eq!(stats.rows, 30000);
+        assert_eq!(stats.col_sizes[0], 30000 * 8);
+        
         let mut num_rows = 0;
         iterate_buffer!(r, idx, row, {
             match idx % 3 {
@@ -178,7 +203,7 @@ mod tests {
         for _ in 0..10000 {
             w.push_row(vec![Data::Integer(5),
                             Data::Integer(6),
-                            Data::Text(String::from("hello!"))]);
+                            Data::Text(String::from("hello"))]);
             w.push_row(vec![Data::Integer(-5),
                             Data::Integer(60),
                             Data::Text(String::from("world!"))]);
@@ -187,9 +212,12 @@ mod tests {
 
         assert!(w.did_spill());
 
-        let val = Data::Text(String::from("hello!"));
+        let (stats, mut r) = w.read();
+
+        assert_eq!(stats.rows, 20000);
+        assert_eq!(stats.col_sizes[0], 20000 * 8);
+        assert_eq!(stats.col_sizes[1], 20000 * 8);
         
-        let mut r = w.read();
         let mut num_rows = 0;
         iterate_buffer!(r, idx, row, {
             match idx % 2 {
@@ -197,7 +225,7 @@ mod tests {
                     assert_matches!(row[0], Data::Integer(5));
                     assert_matches!(row[1], Data::Integer(6));
                     if let Data::Text(s) = &row[2] {
-                        assert_eq!(s, "hello!");
+                        assert_eq!(s, "hello");
                     } else {
                         panic!("Wrong data type");
                     }
