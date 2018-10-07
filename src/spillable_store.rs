@@ -5,6 +5,7 @@ use std::io::{Write, BufWriter, Read, BufReader, Seek, SeekFrom, ErrorKind};
 use operator_buffer::{OperatorReadBuffer, OperatorWriteBuffer, make_buffer_pair};
 use tempfile::tempfile;
 use std::thread;
+use std::thread::{JoinHandle};
 
 pub struct WritableSpillableStore {
     data: Vec<Data>,
@@ -13,7 +14,8 @@ pub struct WritableSpillableStore {
     backing_file: File,
     writer: BufWriter<File>,
     did_spill: bool,
-    stats: SpillableStoreStats
+    stats: SpillableStoreStats,
+    jh: Option<JoinHandle<()>>
 }
 
 pub struct SpillableStoreStats {
@@ -44,7 +46,8 @@ impl WritableSpillableStore {
                 rows: 0,
                 types: types.clone(),
                 col_sizes: vec![0 ; types.len()]
-            }
+            },
+            jh: None
         };
     }
 
@@ -77,21 +80,35 @@ impl WritableSpillableStore {
         return self.did_spill;
     }
 
-    pub fn read(self) -> (SpillableStoreStats, OperatorReadBuffer) {
-        let (r, w) = make_buffer_pair(5, 4096, self.types.clone());
+    pub fn read(&mut self) -> (&SpillableStoreStats, OperatorReadBuffer) {
+        // Rust will let us make as many clones of an FD with .try_clone
+        // as we want. As a result, multiple calls to read before one of the
+        // ReadableSpillStores has finished will cause the FD to get seeked
+        // around by multiple threads. So, we wait until the last read
+        // is complete before we create a new one.
+        let mut jh: Option<JoinHandle<()>> = None;
+        mem::swap(&mut jh, &mut self.jh);
         
+        if let Some(h) = jh {
+            // previous reader exists, make sure it has finished.
+            h.join().unwrap();
+        }
+
+        // At this point, we know there is no other reader running.
+        let (r, w) = make_buffer_pair(5, 4096, self.types.clone());
+
         let reader = ReadableSpillableStore {
-            data: self.data,
-            types: self.types,
-            reader: BufReader::new(self.backing_file),
+            data: self.data.clone(),
+            types: self.types.clone(),
+            reader: BufReader::new(self.backing_file.try_clone().unwrap()),
             output: w
         };
 
-        thread::spawn(|| {
+        self.jh = Some(thread::spawn(|| {
             reader.start();
-        });
+        }));
 
-        return (self.stats, r);
+        return (&self.stats, r);
     }
 }
 
@@ -103,6 +120,7 @@ impl ReadableSpillableStore {
         // first, read through the entire file.
         while self.read_row_from_file() {}
 
+        println!("data has {} items", self.data.len());
         // now, emit all of the remaining data in the buffer
         self.output.write_many(self.data);
         self.output.flush();

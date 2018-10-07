@@ -37,7 +37,7 @@ impl <T: Write> ColumnarOutput<T> {
         let mut all_stats = Vec::new();
         let mut all_readers = Vec::new();
 
-        for buf in self.int_bufs {
+        for buf in self.int_bufs.iter_mut() {
             let (stats, reader) = buf.read();
             all_stats.push(stats);
             all_readers.push(reader);
