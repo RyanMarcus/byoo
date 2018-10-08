@@ -1,7 +1,7 @@
 use byteorder::{ByteOrder, ReadBytesExt, LittleEndian};
 use std::io::{BufRead, Error, ErrorKind};
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum DataType {
     INTEGER,
     REAL,

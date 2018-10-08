@@ -52,6 +52,9 @@ impl WritableSpillableStore {
     }
 
     pub fn push_row(&mut self, row: Vec<Data>) {
+        // no writing while there is a reader out.
+        assert_matches!(self.jh, None);
+        
         self.stats.rows += 1;
         for (idx, d) in row.iter().enumerate() {
             self.stats.col_sizes[idx] += d.num_bytes();
@@ -81,6 +84,8 @@ impl WritableSpillableStore {
     }
 
     pub fn read(&mut self) -> (&SpillableStoreStats, OperatorReadBuffer) {
+        self.writer.flush();
+        
         // Rust will let us make as many clones of an FD with .try_clone
         // as we want. As a result, multiple calls to read before one of the
         // ReadableSpillStores has finished will cause the FD to get seeked
@@ -120,7 +125,6 @@ impl ReadableSpillableStore {
         // first, read through the entire file.
         while self.read_row_from_file() {}
 
-        println!("data has {} items", self.data.len());
         // now, emit all of the remaining data in the buffer
         self.output.write_many(self.data);
         self.output.flush();
@@ -170,9 +174,9 @@ mod tests {
         let mut num_rows = 0;
         iterate_buffer!(r, idx, row, {
             match idx {
-                0 => { assert_matches!(row[0], Data::Integer(5)); },
-                1 => { assert_matches!(row[0], Data::Integer(6)); },
-                2 => { assert_matches!(row[0], Data::Integer(7)); },
+                0 => { assert_eq!(row[0], Data::Integer(5)); },
+                1 => { assert_eq!(row[0], Data::Integer(6)); },
+                2 => { assert_eq!(row[0], Data::Integer(7)); },
                 _ => { panic!("too many values!"); }
             }
             num_rows += 1;
@@ -182,35 +186,30 @@ mod tests {
     }
 
     #[test]
-    fn spill_test() {
+    fn spill_test_singlecol() {
         let dt = vec![DataType::INTEGER];
-        let mut w = WritableSpillableStore::new(100, dt);
+        let mut w = WritableSpillableStore::new(5, dt);
 
-        for _ in 0..10000 {
-            w.push_row(vec![Data::Integer(5)]);
-            w.push_row(vec![Data::Integer(6)]);
-            w.push_row(vec![Data::Integer(7)]);
+        let num_rows: usize = 10;
+        
+        for i in 0..num_rows {
+            w.push_row(vec![Data::Integer(i as i64)]);
         }
 
         assert!(w.did_spill());
         
         let (stats, mut r) = w.read();
 
-        assert_eq!(stats.rows, 30000);
-        assert_eq!(stats.col_sizes[0], 30000 * 8);
+        assert_eq!(stats.rows, num_rows);
+        assert_eq!(stats.col_sizes[0], num_rows * 8);
         
         let mut num_rows = 0;
         iterate_buffer!(r, idx, row, {
-            match idx % 3 {
-                0 => { assert_matches!(row[0], Data::Integer(5)); },
-                1 => { assert_matches!(row[0], Data::Integer(6)); },
-                2 => { assert_matches!(row[0], Data::Integer(7)); },
-                _ => { panic!("invalid mod value"); }
-            }
+            assert_eq!(row[0], Data::Integer(idx));
             num_rows += 1;
         });
-
-        assert_eq!(num_rows, 30000);
+        
+        assert_eq!(num_rows, num_rows);
     }
 
     #[test]
@@ -240,8 +239,8 @@ mod tests {
         iterate_buffer!(r, idx, row, {
             match idx % 2 {
                 0 => {
-                    assert_matches!(row[0], Data::Integer(5));
-                    assert_matches!(row[1], Data::Integer(6));
+                    assert_eq!(row[0], Data::Integer(5));
+                    assert_eq!(row[1], Data::Integer(6));
                     if let Data::Text(s) = &row[2] {
                         assert_eq!(s, "hello");
                     } else {
@@ -249,8 +248,8 @@ mod tests {
                     }
                 },
                 1 => {
-                    assert_matches!(row[0], Data::Integer(-5));
-                    assert_matches!(row[1], Data::Integer(60));
+                    assert_eq!(row[0], Data::Integer(-5));
+                    assert_eq!(row[1], Data::Integer(60));
                     if let Data::Text(s) = &row[2] {
                         assert_eq!(s, "world!");
                     } else {

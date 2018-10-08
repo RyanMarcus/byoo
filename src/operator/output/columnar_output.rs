@@ -111,12 +111,12 @@ mod tests {
         assert_eq!(cursor.read_u16::<LittleEndian>().unwrap(),
                    DataType::INTEGER.to_code()); // col code
         assert_eq!(cursor.read_u64::<LittleEndian>().unwrap(), 21); // col offset
-        assert_matches!(DataType::INTEGER.read_item(&mut cursor).unwrap(),
-                        Data::Integer(5));
-        assert_matches!(DataType::INTEGER.read_item(&mut cursor).unwrap(),
-                        Data::Integer(6));
-        assert_matches!(DataType::INTEGER.read_item(&mut cursor).unwrap(),
-                        Data::Integer(7));
+        assert_eq!(DataType::INTEGER.read_item(&mut cursor).unwrap(),
+                   Data::Integer(5));
+        assert_eq!(DataType::INTEGER.read_item(&mut cursor).unwrap(),
+                   Data::Integer(6));
+        assert_eq!(DataType::INTEGER.read_item(&mut cursor).unwrap(),
+                   Data::Integer(7));
     }
 
      
@@ -151,32 +151,30 @@ mod tests {
         
         assert_eq!(cursor.read_u64::<LittleEndian>().unwrap(), 31); // col offset
         assert_eq!(cursor.read_u64::<LittleEndian>().unwrap(), 31 + 4*8); // col offset
-        assert_matches!(DataType::INTEGER.read_item(&mut cursor).unwrap(),
-                        Data::Integer(5));
-        assert_matches!(DataType::INTEGER.read_item(&mut cursor).unwrap(),
-                        Data::Integer(6));
-        assert_matches!(DataType::INTEGER.read_item(&mut cursor).unwrap(),
-                        Data::Integer(7));
-        assert_matches!(DataType::INTEGER.read_item(&mut cursor).unwrap(),
-                        Data::Integer(-8));
-
-        let s1 = String::from("string 1");
-        assert_matches!(DataType::TEXT.read_item(&mut cursor).unwrap(),
-                        Data::Text(s1));
-
-        let s2 = String::from("a longer string");
-        assert_matches!(DataType::TEXT.read_item(&mut cursor).unwrap(),
-                        Data::Text(s2));
-
-        let s3 = String::from("c");
-        assert_matches!(DataType::TEXT.read_item(&mut cursor).unwrap(),
-                        Data::Text(s3));
-
-        let s4 = String::from("!!!");
-        assert_matches!(DataType::TEXT.read_item(&mut cursor).unwrap(),
-                        Data::Text(s4));
-
+        assert_eq!(DataType::INTEGER.read_item(&mut cursor).unwrap(),
+                   Data::Integer(5));
+        assert_eq!(DataType::INTEGER.read_item(&mut cursor).unwrap(),
+                   Data::Integer(6));
+        assert_eq!(DataType::INTEGER.read_item(&mut cursor).unwrap(),
+                   Data::Integer(7));
+        assert_eq!(DataType::INTEGER.read_item(&mut cursor).unwrap(),
+                   Data::Integer(-8));
         
+        let s1 = String::from("string 1");
+        assert_eq!(DataType::TEXT.read_item(&mut cursor).unwrap(),
+                   Data::Text(s1));
+        
+        let s2 = String::from("a longer string");
+        assert_eq!(DataType::TEXT.read_item(&mut cursor).unwrap(),
+                   Data::Text(s2));
+        
+        let s3 = String::from("c");
+        assert_eq!(DataType::TEXT.read_item(&mut cursor).unwrap(),
+                   Data::Text(s3));
+        
+        let s4 = String::from("!!!");
+        assert_eq!(DataType::TEXT.read_item(&mut cursor).unwrap(),
+                   Data::Text(s4));
         
     }
 }

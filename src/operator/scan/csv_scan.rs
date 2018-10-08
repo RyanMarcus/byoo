@@ -58,20 +58,20 @@ mod tests {
             num_rows += 1;
             match idx {
                 0 => {
-                    assert_matches!(row[0], Data::Integer(1));
-                    assert_matches!(row[1], Data::Integer(2));
-                    assert_matches!(row[2], Data::Integer(3));
+                    assert_eq!(row[0], Data::Integer(1));
+                    assert_eq!(row[1], Data::Integer(2));
+                    assert_eq!(row[2], Data::Integer(3));
                 },
                 1 => {
-                    assert_matches!(row[0], Data::Integer(4));
-                    assert_matches!(row[1], Data::Integer(5));
-                    assert_matches!(row[2], Data::Integer(6));
+                    assert_eq!(row[0], Data::Integer(4));
+                    assert_eq!(row[1], Data::Integer(5));
+                    assert_eq!(row[2], Data::Integer(6));
 
                 },
                 2 => {
-                    assert_matches!(row[0], Data::Integer(7));
-                    assert_matches!(row[1], Data::Integer(8));
-                    assert_matches!(row[2], Data::Integer(9));
+                    assert_eq!(row[0], Data::Integer(7));
+                    assert_eq!(row[1], Data::Integer(8));
+                    assert_eq!(row[2], Data::Integer(9));
                 }
                 _ => { panic!("too many rows!"); }
             }
@@ -102,22 +102,22 @@ mod tests {
             match idx {
                 0 => {
                     let s = String::from("2");
-                    assert_matches!(row[0], Data::Integer(1));
-                    assert_matches!(row[1], Data::Text(ref s));
-                    assert_matches!(row[2], Data::Integer(3));
+                    assert_eq!(row[0], Data::Integer(1));
+                    assert_eq!(row[1], Data::Text(s));
+                    assert_eq!(row[2], Data::Integer(3));
                 },
                 1 => {
                     let s = String::from("hello");
-                    assert_matches!(row[0], Data::Integer(4));
-                    assert_matches!(row[1], Data::Text(ref s));
-                    assert_matches!(row[2], Data::Integer(6));
+                    assert_eq!(row[0], Data::Integer(4));
+                    assert_eq!(row[1], Data::Text(s));
+                    assert_eq!(row[2], Data::Integer(6));
 
                 },
                 2 => {
                     let s = String::from("8");
-                    assert_matches!(row[0], Data::Integer(7));
-                    assert_matches!(row[1], Data::Text(ref s));
-                    assert_matches!(row[2], Data::Integer(9));
+                    assert_eq!(row[0], Data::Integer(7));
+                    assert_eq!(row[1], Data::Text(s));
+                    assert_eq!(row[2], Data::Integer(9));
                 }
                 _ => { panic!("too many rows!"); }
             }
