@@ -263,4 +263,57 @@ mod tests {
 
         assert_eq!(num_rows, 20000);
     }
+
+      #[test]
+    fn spill_test_multicol_multiread() {
+        let dt = vec![DataType::INTEGER, DataType::INTEGER, DataType::TEXT];
+        let mut w = WritableSpillableStore::new(100, dt);
+
+        for _ in 0..10000 {
+            w.push_row(vec![Data::Integer(5),
+                            Data::Integer(6),
+                            Data::Text(String::from("hello"))]);
+            w.push_row(vec![Data::Integer(-5),
+                            Data::Integer(60),
+                            Data::Text(String::from("world!"))]);
+
+        }
+
+        assert!(w.did_spill());
+        for _ in 0..10 {
+            let (stats, mut r) = w.read();
+
+            assert_eq!(stats.rows, 20000);
+            assert_eq!(stats.col_sizes[0], 20000 * 8);
+            assert_eq!(stats.col_sizes[1], 20000 * 8);
+            
+            let mut num_rows = 0;
+            iterate_buffer!(r, idx, row, {
+                match idx % 2 {
+                    0 => {
+                        assert_eq!(row[0], Data::Integer(5));
+                        assert_eq!(row[1], Data::Integer(6));
+                        if let Data::Text(s) = &row[2] {
+                            assert_eq!(s, "hello");
+                        } else {
+                            panic!("Wrong data type");
+                        }
+                    },
+                    1 => {
+                        assert_eq!(row[0], Data::Integer(-5));
+                        assert_eq!(row[1], Data::Integer(60));
+                        if let Data::Text(s) = &row[2] {
+                            assert_eq!(s, "world!");
+                        } else {
+                            panic!("Wrong data type");
+                        }
+                    },
+                    _ => { panic!("invalid mod value"); }
+                }
+                num_rows += 1;
+            });
+
+            assert_eq!(num_rows, 20000);
+        }
+    }
 }
