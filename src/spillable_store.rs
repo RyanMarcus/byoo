@@ -264,7 +264,7 @@ mod tests {
         assert_eq!(num_rows, 20000);
     }
 
-      #[test]
+    #[test]
     fn spill_test_multicol_multiread() {
         let dt = vec![DataType::INTEGER, DataType::INTEGER, DataType::TEXT];
         let mut w = WritableSpillableStore::new(100, dt);
