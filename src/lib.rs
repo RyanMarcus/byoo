@@ -3,6 +3,7 @@ extern crate matches;
 extern crate byteorder;
 extern crate csv;
 extern crate tempfile;
+extern crate base64;
 
 mod data;
 

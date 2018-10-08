@@ -1,5 +1,6 @@
 use byteorder::{ByteOrder, ReadBytesExt, LittleEndian};
 use std::io::{BufRead, Error, ErrorKind};
+use base64;
 
 #[derive(Clone, Debug)]
 pub enum DataType {
@@ -130,6 +131,15 @@ impl Data {
 
                 return to_r;
             }
+        }
+    }
+
+    pub fn into_string(self) -> String {
+        match self {
+            Data::Integer(i) => i.to_string(),
+            Data::Real(f) => f.to_string(),
+            Data::Text(t) => t,
+            Data::Blob(b) => base64::encode(&b)
         }
     }
 }
