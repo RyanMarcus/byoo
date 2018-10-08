@@ -1,3 +1,3 @@
 mod filter;
-mod scan;
 mod output;
+mod scan;

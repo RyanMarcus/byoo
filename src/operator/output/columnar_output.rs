@@ -1,15 +1,15 @@
+use byteorder::{LittleEndian, WriteBytesExt};
 use operator_buffer::OperatorReadBuffer;
 use spillable_store::WritableSpillableStore;
 use std::io::Write;
-use byteorder::{WriteBytesExt, LittleEndian};
 
 pub struct ColumnarOutput<T> {
     input: OperatorReadBuffer,
     int_bufs: Vec<WritableSpillableStore>,
-    output: T
+    output: T,
 }
 
-impl <T: Write> ColumnarOutput<T> {
+impl<T: Write> ColumnarOutput<T> {
     pub fn new(buf_size: usize, input: OperatorReadBuffer, output: T) -> ColumnarOutput<T> {
         let types = input.types().to_vec();
 
@@ -18,10 +18,11 @@ impl <T: Write> ColumnarOutput<T> {
         for dt in types.iter() {
             internal_bufs.push(WritableSpillableStore::new(buf_size, vec![dt.clone()]));
         }
-        
+
         return ColumnarOutput {
             int_bufs: internal_bufs,
-            input, output
+            input,
+            output,
         };
     }
 
@@ -42,28 +43,36 @@ impl <T: Write> ColumnarOutput<T> {
             all_stats.push(stats);
             all_readers.push(reader);
         }
-        
+
         self.output.write_u8(1).unwrap(); // columnar format
-        
+
         // num columns
-        self.output.write_u16::<LittleEndian>(all_stats.len() as u16).unwrap();
+        self.output
+            .write_u16::<LittleEndian>(all_stats.len() as u16)
+            .unwrap();
 
         // num rows
         let num_rows = all_stats[0].rows;
-        self.output.write_u64::<LittleEndian>(num_rows as u64).unwrap();
+        self.output
+            .write_u64::<LittleEndian>(num_rows as u64)
+            .unwrap();
 
         // write out column data types
         for dt in all_stats.iter() {
-            self.output.write_u16::<LittleEndian>(dt.types[0].to_code()).unwrap();
+            self.output
+                .write_u16::<LittleEndian>(dt.types[0].to_code())
+                .unwrap();
         }
 
         // compute the column offsets
-        let header_size = 1 + 2 + 8 + all_stats.len()*2 + all_stats.len()*8;
+        let header_size = 1 + 2 + 8 + all_stats.len() * 2 + all_stats.len() * 8;
         let mut col_offset_counter = header_size;
 
         for stats in all_stats.iter() {
             let col_size = stats.col_sizes[0];
-            self.output.write_u64::<LittleEndian>(col_offset_counter as u64).unwrap();
+            self.output
+                .write_u64::<LittleEndian>(col_offset_counter as u64)
+                .unwrap();
             col_offset_counter += col_size;
         }
 
@@ -80,13 +89,12 @@ impl <T: Write> ColumnarOutput<T> {
 
 #[cfg(test)]
 mod tests {
+    use byteorder::{LittleEndian, ReadBytesExt};
+    use data::{Data, DataType};
     use operator::output::ColumnarOutput;
-    use operator_buffer::{make_buffer_pair};
-    use data::{Data,DataType};
-    use byteorder::{ReadBytesExt, LittleEndian};
+    use operator_buffer::make_buffer_pair;
     use std::io::Cursor;
 
-    
     #[test]
     fn writes_single_col() {
         let (r, mut w) = make_buffer_pair(5, 10, vec![DataType::INTEGER]);
@@ -104,30 +112,38 @@ mod tests {
         }
 
         let mut cursor = Cursor::new(output_data);
-        
+
         assert_eq!(cursor.read_u8().unwrap(), 1); // tag
         assert_eq!(cursor.read_u16::<LittleEndian>().unwrap(), 1); // cols
         assert_eq!(cursor.read_u64::<LittleEndian>().unwrap(), 3); // rows
-        assert_eq!(cursor.read_u16::<LittleEndian>().unwrap(),
-                   DataType::INTEGER.to_code()); // col code
+        assert_eq!(
+            cursor.read_u16::<LittleEndian>().unwrap(),
+            DataType::INTEGER.to_code()
+        ); // col code
         assert_eq!(cursor.read_u64::<LittleEndian>().unwrap(), 21); // col offset
-        assert_eq!(DataType::INTEGER.read_item(&mut cursor).unwrap(),
-                   Data::Integer(5));
-        assert_eq!(DataType::INTEGER.read_item(&mut cursor).unwrap(),
-                   Data::Integer(6));
-        assert_eq!(DataType::INTEGER.read_item(&mut cursor).unwrap(),
-                   Data::Integer(7));
+        assert_eq!(
+            DataType::INTEGER.read_item(&mut cursor).unwrap(),
+            Data::Integer(5)
+        );
+        assert_eq!(
+            DataType::INTEGER.read_item(&mut cursor).unwrap(),
+            Data::Integer(6)
+        );
+        assert_eq!(
+            DataType::INTEGER.read_item(&mut cursor).unwrap(),
+            Data::Integer(7)
+        );
     }
 
-     
     #[test]
     fn writes_multi_col() {
-        let (r, mut w) = make_buffer_pair(5, 10, vec![DataType::INTEGER,
-                                                      DataType::TEXT]);
+        let (r, mut w) = make_buffer_pair(5, 10, vec![DataType::INTEGER, DataType::TEXT]);
 
-        
         w.write(vec![Data::Integer(5), Data::Text(String::from("string 1"))]);
-        w.write(vec![Data::Integer(6), Data::Text(String::from("a longer string"))]);
+        w.write(vec![
+            Data::Integer(6),
+            Data::Text(String::from("a longer string")),
+        ]);
         w.write(vec![Data::Integer(7), Data::Text(String::from("c"))]);
         w.write(vec![Data::Integer(-8), Data::Text(String::from("!!!"))]);
         drop(w);
@@ -140,41 +156,60 @@ mod tests {
         }
 
         let mut cursor = Cursor::new(output_data);
-        
+
         assert_eq!(cursor.read_u8().unwrap(), 1); // tag
         assert_eq!(cursor.read_u16::<LittleEndian>().unwrap(), 2); // cols
         assert_eq!(cursor.read_u64::<LittleEndian>().unwrap(), 4); // rows
-        assert_eq!(cursor.read_u16::<LittleEndian>().unwrap(),
-                   DataType::INTEGER.to_code()); // col code
-        assert_eq!(cursor.read_u16::<LittleEndian>().unwrap(),
-                   DataType::TEXT.to_code()); // col code
-        
+        assert_eq!(
+            cursor.read_u16::<LittleEndian>().unwrap(),
+            DataType::INTEGER.to_code()
+        ); // col code
+        assert_eq!(
+            cursor.read_u16::<LittleEndian>().unwrap(),
+            DataType::TEXT.to_code()
+        ); // col code
+
         assert_eq!(cursor.read_u64::<LittleEndian>().unwrap(), 31); // col offset
-        assert_eq!(cursor.read_u64::<LittleEndian>().unwrap(), 31 + 4*8); // col offset
-        assert_eq!(DataType::INTEGER.read_item(&mut cursor).unwrap(),
-                   Data::Integer(5));
-        assert_eq!(DataType::INTEGER.read_item(&mut cursor).unwrap(),
-                   Data::Integer(6));
-        assert_eq!(DataType::INTEGER.read_item(&mut cursor).unwrap(),
-                   Data::Integer(7));
-        assert_eq!(DataType::INTEGER.read_item(&mut cursor).unwrap(),
-                   Data::Integer(-8));
-        
+        assert_eq!(cursor.read_u64::<LittleEndian>().unwrap(), 31 + 4 * 8); // col offset
+        assert_eq!(
+            DataType::INTEGER.read_item(&mut cursor).unwrap(),
+            Data::Integer(5)
+        );
+        assert_eq!(
+            DataType::INTEGER.read_item(&mut cursor).unwrap(),
+            Data::Integer(6)
+        );
+        assert_eq!(
+            DataType::INTEGER.read_item(&mut cursor).unwrap(),
+            Data::Integer(7)
+        );
+        assert_eq!(
+            DataType::INTEGER.read_item(&mut cursor).unwrap(),
+            Data::Integer(-8)
+        );
+
         let s1 = String::from("string 1");
-        assert_eq!(DataType::TEXT.read_item(&mut cursor).unwrap(),
-                   Data::Text(s1));
-        
+        assert_eq!(
+            DataType::TEXT.read_item(&mut cursor).unwrap(),
+            Data::Text(s1)
+        );
+
         let s2 = String::from("a longer string");
-        assert_eq!(DataType::TEXT.read_item(&mut cursor).unwrap(),
-                   Data::Text(s2));
-        
+        assert_eq!(
+            DataType::TEXT.read_item(&mut cursor).unwrap(),
+            Data::Text(s2)
+        );
+
         let s3 = String::from("c");
-        assert_eq!(DataType::TEXT.read_item(&mut cursor).unwrap(),
-                   Data::Text(s3));
-        
+        assert_eq!(
+            DataType::TEXT.read_item(&mut cursor).unwrap(),
+            Data::Text(s3)
+        );
+
         let s4 = String::from("!!!");
-        assert_eq!(DataType::TEXT.read_item(&mut cursor).unwrap(),
-                   Data::Text(s4));
-        
+        assert_eq!(
+            DataType::TEXT.read_item(&mut cursor).unwrap(),
+            Data::Text(s4)
+        );
     }
 }

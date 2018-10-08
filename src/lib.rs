@@ -9,11 +9,10 @@ mod data;
 #[macro_use]
 mod operator_buffer;
 
-mod row_buffer;
-mod spillable_store;
 mod columnar_scan;
 mod operator;
-
+mod row_buffer;
+mod spillable_store;
 
 #[cfg(test)]
 mod tests {
