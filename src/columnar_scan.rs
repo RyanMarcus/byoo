@@ -1,21 +1,21 @@
-use byteorder::{LittleEndian, ReadBytesExt};
-use data::DataType;
 use operator_buffer::OperatorWriteBuffer;
 use std::fs::File;
-use std::io::{BufReader, Seek, SeekFrom};
+use std::io::{Seek, SeekFrom, BufReader};
+use byteorder::{ReadBytesExt, LittleEndian};
+use data::{DataType};
 
 struct ColumnarScan {
     filename: String,
     buffer: OperatorWriteBuffer,
-    col_idx: usize,
+    col_idx: usize
 }
 
 impl ColumnarScan {
-    pub fn new(filename: String, col_idx: usize, buffer: OperatorWriteBuffer) -> ColumnarScan {
+    pub fn new(filename: String, col_idx: usize,
+               buffer: OperatorWriteBuffer) -> ColumnarScan {
+
         return ColumnarScan {
-            filename,
-            col_idx,
-            buffer,
+            filename, col_idx, buffer
         };
     }
 
@@ -34,16 +34,15 @@ impl ColumnarScan {
 
         // read the number of rows
         let num_rows = reader.read_u64::<LittleEndian>().unwrap();
-
+        
         // next is the column data types
         let mut datatypes = Vec::with_capacity(num_columns);
-        reader
-            .read_u16_into::<LittleEndian>(&mut datatypes)
-            .unwrap();
+        reader.read_u16_into::<LittleEndian>(&mut datatypes).unwrap();
 
         // next is the column offsets
         let mut offsets = Vec::with_capacity(num_columns);
         reader.read_u64_into::<LittleEndian>(&mut offsets).unwrap();
+
 
         let datatype = DataType::from_code(datatypes[self.col_idx]);
         let offset = offsets[self.col_idx];
@@ -53,5 +52,6 @@ impl ColumnarScan {
             let data = datatype.read_item(&mut reader).unwrap();
             self.buffer.write(vec![data]);
         }
+        
     }
 }

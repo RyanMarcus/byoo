@@ -1,11 +1,11 @@
 use data::{Data, DataType};
-use operator_buffer::{make_buffer_pair, OperatorReadBuffer, OperatorWriteBuffer};
-use std::fs::File;
-use std::io::{BufReader, BufWriter, ErrorKind, Read, Seek, SeekFrom, Write};
 use std::mem;
-use std::thread;
-use std::thread::JoinHandle;
+use std::fs::File;
+use std::io::{Write, BufWriter, Read, BufReader, Seek, SeekFrom, ErrorKind};
+use operator_buffer::{OperatorReadBuffer, OperatorWriteBuffer, make_buffer_pair};
 use tempfile::tempfile;
+use std::thread;
+use std::thread::{JoinHandle};
 
 pub struct WritableSpillableStore {
     data: Vec<Data>,
@@ -15,20 +15,20 @@ pub struct WritableSpillableStore {
     writer: BufWriter<File>,
     did_spill: bool,
     stats: SpillableStoreStats,
-    jh: Option<JoinHandle<()>>,
+    jh: Option<JoinHandle<()>>
 }
 
 pub struct SpillableStoreStats {
     pub rows: usize,
     pub types: Vec<DataType>,
-    pub col_sizes: Vec<usize>,
+    pub col_sizes: Vec<usize>
 }
 
 struct ReadableSpillableStore {
     data: Vec<Data>,
     types: Vec<DataType>,
     reader: BufReader<File>,
-    output: OperatorWriteBuffer,
+    output: OperatorWriteBuffer
 }
 
 impl WritableSpillableStore {
@@ -45,21 +45,21 @@ impl WritableSpillableStore {
             stats: SpillableStoreStats {
                 rows: 0,
                 types: types.clone(),
-                col_sizes: vec![0; types.len()],
+                col_sizes: vec![0 ; types.len()]
             },
-            jh: None,
+            jh: None
         };
     }
 
     pub fn push_row(&mut self, row: Vec<Data>) {
         // no writing while there is a reader out.
         assert_matches!(self.jh, None);
-
+        
         self.stats.rows += 1;
         for (idx, d) in row.iter().enumerate() {
             self.stats.col_sizes[idx] += d.num_bytes();
         }
-
+        
         if self.data.len() + row.len() < self.max_size {
             // it fits in memory
             self.data.extend(row);
@@ -71,7 +71,7 @@ impl WritableSpillableStore {
         self.did_spill = true;
         let mut buf = Vec::with_capacity(self.max_size);
         mem::swap(&mut buf, &mut self.data);
-
+        
         for d in buf {
             self.writer.write(&d.into_bytes());
         }
@@ -85,7 +85,7 @@ impl WritableSpillableStore {
 
     pub fn read(&mut self) -> (&SpillableStoreStats, OperatorReadBuffer) {
         self.writer.flush();
-
+        
         // Rust will let us make as many clones of an FD with .try_clone
         // as we want. As a result, multiple calls to read before one of the
         // ReadableSpillStores has finished will cause the FD to get seeked
@@ -93,7 +93,7 @@ impl WritableSpillableStore {
         // is complete before we create a new one.
         let mut jh: Option<JoinHandle<()>> = None;
         mem::swap(&mut jh, &mut self.jh);
-
+        
         if let Some(h) = jh {
             // previous reader exists, make sure it has finished.
             h.join().unwrap();
@@ -106,7 +106,7 @@ impl WritableSpillableStore {
             data: self.data.clone(),
             types: self.types.clone(),
             reader: BufReader::new(self.backing_file.try_clone().unwrap()),
-            output: w,
+            output: w
         };
 
         self.jh = Some(thread::spawn(|| {
@@ -121,7 +121,7 @@ impl ReadableSpillableStore {
     fn start(mut self) {
         // seek to the start
         self.reader.seek(SeekFrom::Start(0)).unwrap();
-
+        
         // first, read through the entire file.
         while self.read_row_from_file() {}
 
@@ -134,9 +134,7 @@ impl ReadableSpillableStore {
         let mut row = Vec::with_capacity(self.types.len());
         for dt in self.types.iter() {
             match dt.read_item(&mut self.reader) {
-                Ok(v) => {
-                    row.push(v);
-                }
+                Ok(v) => { row.push(v); },
                 Err(e) => {
                     if let ErrorKind::UnexpectedEof = e.kind() {
                         // if we hit an EOF, we shouldn't have any data in the row
@@ -153,12 +151,13 @@ impl ReadableSpillableStore {
     }
 }
 
+
 #[cfg(test)]
 mod tests {
 
-    use data::{Data, DataType};
+    use data::{DataType,Data};
     use spillable_store::WritableSpillableStore;
-
+    
     #[test]
     fn no_spill_test() {
         let dt = vec![DataType::INTEGER];
@@ -171,22 +170,14 @@ mod tests {
 
         assert_eq!(stats.rows, 3);
         assert_eq!(stats.col_sizes[0], 3 * 8);
-
+        
         let mut num_rows = 0;
         iterate_buffer!(r, idx, row, {
             match idx {
-                0 => {
-                    assert_eq!(row[0], Data::Integer(5));
-                }
-                1 => {
-                    assert_eq!(row[0], Data::Integer(6));
-                }
-                2 => {
-                    assert_eq!(row[0], Data::Integer(7));
-                }
-                _ => {
-                    panic!("too many values!");
-                }
+                0 => { assert_eq!(row[0], Data::Integer(5)); },
+                1 => { assert_eq!(row[0], Data::Integer(6)); },
+                2 => { assert_eq!(row[0], Data::Integer(7)); },
+                _ => { panic!("too many values!"); }
             }
             num_rows += 1;
         });
@@ -200,24 +191,24 @@ mod tests {
         let mut w = WritableSpillableStore::new(5, dt);
 
         let num_rows: usize = 10;
-
+        
         for i in 0..num_rows {
             w.push_row(vec![Data::Integer(i as i64)]);
         }
 
         assert!(w.did_spill());
-
+        
         let (stats, mut r) = w.read();
 
         assert_eq!(stats.rows, num_rows);
         assert_eq!(stats.col_sizes[0], num_rows * 8);
-
+        
         let mut num_rows = 0;
         iterate_buffer!(r, idx, row, {
             assert_eq!(row[0], Data::Integer(idx));
             num_rows += 1;
         });
-
+        
         assert_eq!(num_rows, num_rows);
     }
 
@@ -227,16 +218,13 @@ mod tests {
         let mut w = WritableSpillableStore::new(100, dt);
 
         for _ in 0..10000 {
-            w.push_row(vec![
-                Data::Integer(5),
-                Data::Integer(6),
-                Data::Text(String::from("hello")),
-            ]);
-            w.push_row(vec![
-                Data::Integer(-5),
-                Data::Integer(60),
-                Data::Text(String::from("world!")),
-            ]);
+            w.push_row(vec![Data::Integer(5),
+                            Data::Integer(6),
+                            Data::Text(String::from("hello"))]);
+            w.push_row(vec![Data::Integer(-5),
+                            Data::Integer(60),
+                            Data::Text(String::from("world!"))]);
+
         }
 
         assert!(w.did_spill());
@@ -246,7 +234,7 @@ mod tests {
         assert_eq!(stats.rows, 20000);
         assert_eq!(stats.col_sizes[0], 20000 * 8);
         assert_eq!(stats.col_sizes[1], 20000 * 8);
-
+        
         let mut num_rows = 0;
         iterate_buffer!(r, idx, row, {
             match idx % 2 {
@@ -258,7 +246,7 @@ mod tests {
                     } else {
                         panic!("Wrong data type");
                     }
-                }
+                },
                 1 => {
                     assert_eq!(row[0], Data::Integer(-5));
                     assert_eq!(row[1], Data::Integer(60));
@@ -267,10 +255,8 @@ mod tests {
                     } else {
                         panic!("Wrong data type");
                     }
-                }
-                _ => {
-                    panic!("invalid mod value");
-                }
+                },
+                _ => { panic!("invalid mod value"); }
             }
             num_rows += 1;
         });

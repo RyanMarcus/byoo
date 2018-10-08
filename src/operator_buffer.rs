@@ -1,45 +1,40 @@
-use data::{Data, DataType};
-use row_buffer::RowBuffer;
+use std::sync::mpsc::{Sender, Receiver, channel};
 use std::collections::VecDeque;
-use std::sync::mpsc::{channel, Receiver, Sender};
+use row_buffer::{RowBuffer};
+use data::{Data, DataType};
+
 
 pub struct OperatorReadBuffer {
     buffers: VecDeque<RowBuffer>,
     send: Sender<RowBuffer>,
     recv: Receiver<RowBuffer>,
-    types: Vec<DataType>,
+    types: Vec<DataType>
 }
 
 pub struct OperatorWriteBuffer {
     buffers: VecDeque<RowBuffer>,
     send: Sender<RowBuffer>,
     recv: Receiver<RowBuffer>,
-    types: Vec<DataType>,
+    types: Vec<DataType>
 }
 
 impl OperatorReadBuffer {
-    fn new(
-        send: Sender<RowBuffer>,
-        recv: Receiver<RowBuffer>,
-        types: Vec<DataType>,
-    ) -> OperatorReadBuffer {
+    fn new(send: Sender<RowBuffer>, recv: Receiver<RowBuffer>, types: Vec<DataType>)
+           -> OperatorReadBuffer {        
         return OperatorReadBuffer {
             buffers: VecDeque::new(),
             send,
             recv,
-            types,
+            types
+                
         };
     }
 
     pub fn data(&mut self) -> Option<&mut RowBuffer> {
         if self.buffers.is_empty() {
             match self.recv.recv() {
-                Ok(r) => {
-                    self.buffers.push_back(r);
-                }
-                Err(_) => {
-                    return None;
-                }
+                Ok(r) => { self.buffers.push_back(r); }
+                Err(_) => { return None; }
             };
         }
 
@@ -64,9 +59,7 @@ macro_rules! iterate_buffer {
             {
                 let next_rb = match ($op_buf).data() {
                     Some(rb) => rb,
-                    None => {
-                        break;
-                    }
+                    None => { break; }
                 };
 
                 for $row_var in next_rb.iter() {
@@ -82,9 +75,7 @@ macro_rules! iterate_buffer {
             {
                 let next_rb = match ($op_buf).data() {
                     Some(rb) => rb,
-                    None => {
-                        break;
-                    }
+                    None => { break; }
                 };
                 for $row_var in next_rb.iter() {
                     let $idx_var = count;
@@ -98,24 +89,23 @@ macro_rules! iterate_buffer {
 }
 
 impl OperatorWriteBuffer {
-    fn new(
-        num_buffers: usize,
-        buffer_size: usize,
-        types: Vec<DataType>,
-        send: Sender<RowBuffer>,
-        recv: Receiver<RowBuffer>,
-    ) -> OperatorWriteBuffer {
+    fn new(num_buffers: usize, buffer_size: usize,
+           types: Vec<DataType>,
+           send: Sender<RowBuffer>, recv: Receiver<RowBuffer>)
+           -> OperatorWriteBuffer {
+
         let mut buffers = VecDeque::new();
 
         for _ in 0..num_buffers {
             buffers.push_back(RowBuffer::new(types.clone(), buffer_size));
         }
 
+        
         return OperatorWriteBuffer {
             buffers: buffers,
             send: send,
             recv: recv,
-            types: types,
+            types: types
         };
     }
 
@@ -123,7 +113,7 @@ impl OperatorWriteBuffer {
         if self.buffers.is_empty() {
             // we must wait until we get a buffer back!
             self.buffers.push_back(self.recv.recv().unwrap());
-        }
+        }   
     }
 
     fn send_buffer(&mut self) {
@@ -144,7 +134,7 @@ impl OperatorWriteBuffer {
             return false;
         }
     }
-
+    
     pub fn write(&mut self, row: Vec<Data>) {
         self.ensure_buffer();
 
@@ -168,13 +158,10 @@ impl OperatorWriteBuffer {
     }
 
     pub fn write_strings(&mut self, row: Vec<String>) {
-        let data: Vec<Data> = row
-            .into_iter()
-            .enumerate()
-            .map(|(idx, field)| {
-                let dt = &self.types[idx];
-                return dt.from_string(field);
-            }).collect();
+        let data: Vec<Data> = row.into_iter().enumerate().map(|(idx, field)| {
+            let dt = &self.types[idx];
+            return dt.from_string(field);
+        }).collect();
 
         self.write(data);
     }
@@ -182,6 +169,7 @@ impl OperatorWriteBuffer {
     pub fn flush(&mut self) {
         self.send_buffer();
     }
+
 }
 
 impl Drop for OperatorWriteBuffer {
@@ -190,25 +178,25 @@ impl Drop for OperatorWriteBuffer {
     }
 }
 
-pub fn make_buffer_pair(
-    num_buffers: usize,
-    buffer_size: usize,
-    types: Vec<DataType>,
-) -> (OperatorReadBuffer, OperatorWriteBuffer) {
+pub fn make_buffer_pair(num_buffers: usize, buffer_size: usize,
+                        types: Vec<DataType>)
+                        -> (OperatorReadBuffer, OperatorWriteBuffer) {
     let (s_r2w, r_r2w) = channel();
     let (s_w2r, r_w2r) = channel();
 
     let read = OperatorReadBuffer::new(s_r2w, r_w2r, types.clone());
-    let write = OperatorWriteBuffer::new(num_buffers, buffer_size, types, s_w2r, r_r2w);
+    let write = OperatorWriteBuffer::new(num_buffers, buffer_size,
+                                         types,
+                                         s_w2r, r_r2w);
 
     return (read, write);
 }
 
 #[cfg(test)]
 mod tests {
-    use data::{Data, DataType};
     use operator_buffer::make_buffer_pair;
     use std::thread;
+    use data::{Data, DataType};
 
     #[test]
     fn can_construct() {
@@ -227,25 +215,18 @@ mod tests {
 
         iterate_buffer!(r, idx, row, {
             match idx {
-                0 => {
-                    assert_eq!(row[0], Data::Integer(5));
-                }
-                1 => {
-                    assert_eq!(row[0], Data::Integer(6));
-                }
-                2 => {
-                    assert_eq!(row[0], Data::Integer(-100));
-                }
-                _ => {
-                    panic!("Too many values!");
-                }
+                0 => { assert_eq!(row[0], Data::Integer(5)); }
+                1 => { assert_eq!(row[0], Data::Integer(6)); }
+                2 => { assert_eq!(row[0], Data::Integer(-100)); }
+                _ => { panic!("Too many values!"); }
             }
         });
     }
 
     #[test]
     fn can_send_and_recv_multibuf() {
-        let (mut r, mut w) = make_buffer_pair(5, 3, vec![DataType::INTEGER]);
+        let (mut r, mut w) = make_buffer_pair(5, 3,
+                                              vec![DataType::INTEGER]);
 
         w.write(vec![Data::Integer(5)]);
         w.write(vec![Data::Integer(6)]);
@@ -259,48 +240,32 @@ mod tests {
 
         iterate_buffer!(r, idx, row, {
             match idx {
-                0 => {
-                    assert_eq!(row[0], Data::Integer(5));
-                }
-                1 => {
-                    assert_eq!(row[0], Data::Integer(6));
-                }
-                2 => {
-                    assert_eq!(row[0], Data::Integer(-100));
-                }
-                3 => {
-                    assert_eq!(row[0], Data::Integer(5));
-                }
-                4 => {
-                    assert_eq!(row[0], Data::Integer(7));
-                }
-                5 => {
-                    assert_eq!(row[0], Data::Integer(-100));
-                }
-                _ => {
-                    panic!("Too many values!");
-                }
+                0 => { assert_eq!(row[0], Data::Integer(5)); }
+                1 => { assert_eq!(row[0], Data::Integer(6)); }
+                2 => { assert_eq!(row[0], Data::Integer(-100)); }
+                3 => { assert_eq!(row[0], Data::Integer(5)); }
+                4 => { assert_eq!(row[0], Data::Integer(7)); }
+                5 => { assert_eq!(row[0], Data::Integer(-100)); }
+                _ => { panic!("Too many values!"); }
             }
         });
     }
 
+    
     #[test]
     fn thread_test() {
         let num_sends = 100000;
-        let (mut r, mut w) = make_buffer_pair(
-            5,
-            10,
-            vec![DataType::INTEGER, DataType::INTEGER, DataType::INTEGER],
-        );
+        let (mut r, mut w) = make_buffer_pair(5, 10,
+                                              vec![DataType::INTEGER,
+                                                   DataType::INTEGER,
+                                                   DataType::INTEGER]);
 
         // spawn a writer
         let writer_handler = thread::spawn(move || {
             for idx in 0..num_sends {
-                let data = vec![
-                    Data::Integer(idx),
-                    Data::Integer(idx + 1),
-                    Data::Integer(idx + 2),
-                ];
+                let data = vec![Data::Integer(idx),
+                                Data::Integer(idx + 1),
+                                Data::Integer(idx + 2)];
                 w.write(data);
             }
 
@@ -316,15 +281,18 @@ mod tests {
                         data.push(i);
                     } else {
                         panic!("Invalid datatype from writer!");
-                    }
+                    } 
                 }
             });
             data
         });
 
+
         writer_handler.join().unwrap();
         let data = read_handler.join().unwrap();
-        assert_eq!(data.len(), (num_sends * 3) as usize);
+        assert_eq!(data.len(), (num_sends*3) as usize);
+        
     }
+     
 
 }

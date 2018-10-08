@@ -1,22 +1,18 @@
-use data::Data;
 use operator_buffer::{OperatorReadBuffer, OperatorWriteBuffer};
+use data::Data;
 
 struct Filter {
     input: OperatorReadBuffer,
     output: OperatorWriteBuffer,
-    predicate: fn(&[Data]) -> bool,
+    predicate: fn(&[Data]) -> bool
 }
 
+
 impl Filter {
-    pub fn new(
-        input: OperatorReadBuffer,
-        output: OperatorWriteBuffer,
-        predicate: fn(&[Data]) -> bool,
-    ) -> Filter {
+    pub fn new(input: OperatorReadBuffer, output: OperatorWriteBuffer,
+               predicate: fn(&[Data]) -> bool) -> Filter {
         return Filter {
-            input,
-            output,
-            predicate,
+            input, output, predicate
         };
     }
 
@@ -32,11 +28,12 @@ impl Filter {
     }
 }
 
+
 #[cfg(test)]
 mod tests {
-    use data::{Data, DataType};
     use operator::filter::Filter;
     use operator_buffer::make_buffer_pair;
+    use data::{Data, DataType};
 
     #[test]
     fn filters_odds() {
@@ -50,10 +47,10 @@ mod tests {
 
         let (mut r2, w2) = make_buffer_pair(5, 10, vec![DataType::INTEGER]);
 
-        let filter = Filter::new(r, w2, |d| match d[0] {
-            Data::Integer(i) => i % 2 == 0,
-            _ => {
-                panic!("wrong datatype!");
+        let filter = Filter::new(r, w2, |d| {
+            match d[0] {
+                Data::Integer(i) => i % 2 == 0,
+                _ => { panic!("wrong datatype!"); }
             }
         });
 
@@ -63,19 +60,14 @@ mod tests {
         iterate_buffer!(r2, idx, row, {
             num_items += 1;
             match idx {
-                0 => {
-                    assert_eq!(row[0], Data::Integer(6));
-                }
-                1 => {
-                    assert_eq!(row[0], Data::Integer(-100));
-                }
-                _ => {
-                    panic!("Too many values!");
-                }
+                0 => { assert_eq!(row[0], Data::Integer(6)); }
+                1 => { assert_eq!(row[0], Data::Integer(-100)); }
+                _ => { panic!("Too many values!"); }
             }
         });
 
         assert_eq!(num_items, 2);
+
     }
 
     #[test]
@@ -90,15 +82,15 @@ mod tests {
 
         let (mut r2, w2) = make_buffer_pair(5, 10, vec![DataType::INTEGER]);
 
-        let filter = Filter::new(r, w2, |d| match d[0] {
-            Data::Integer(i) => i % 2 == 0,
-            _ => {
-                panic!("wrong datatype!");
+        let filter = Filter::new(r, w2, |d| {
+            match d[0] {
+                Data::Integer(i) => i % 2 == 0,
+                _ => { panic!("wrong datatype!"); }
             }
         });
 
         filter.start();
-
+        
         let mut num_items = 0;
         iterate_buffer!(r2, row, {
             num_items += 1;
@@ -110,5 +102,6 @@ mod tests {
         });
 
         assert_eq!(num_items, 25);
+
     }
 }

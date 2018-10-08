@@ -1,23 +1,28 @@
-use csv::Reader;
 use data::DataType;
-use operator_buffer::OperatorWriteBuffer;
 use std::io::Read;
+use csv::Reader;
+use operator_buffer::OperatorWriteBuffer;
 
 pub struct CsvScan<T> {
     reader: T,
-    output: OperatorWriteBuffer,
+    output: OperatorWriteBuffer
 }
 
-impl<T: Read> CsvScan<T> {
-    fn new(reader: T, output: OperatorWriteBuffer) -> CsvScan<T> {
-        return CsvScan { reader, output };
-    }
+impl <T: Read> CsvScan<T> {
 
+    fn new(reader: T, output: OperatorWriteBuffer) -> CsvScan<T> {
+        return CsvScan {
+            reader, output
+        };
+    }
+    
     fn start(mut self) {
         let mut rdr = Reader::from_reader(self.reader);
         for result in rdr.records() {
             let record = result.unwrap();
-            let row: Vec<String> = record.iter().map(|s| String::from(s)).collect();
+            let row: Vec<String> = record.iter()
+                .map(|s| String::from(s))
+                .collect();
 
             self.output.write_strings(row);
         }
@@ -28,9 +33,9 @@ impl<T: Read> CsvScan<T> {
 
 #[cfg(test)]
 mod tests {
-    use data::{Data, DataType};
     use operator::scan::CsvScan;
     use operator_buffer::make_buffer_pair;
+    use data::{Data, DataType};
 
     #[test]
     fn reads_simple_csv() {
@@ -40,12 +45,10 @@ mod tests {
 7,8,9
 ".as_bytes();
 
-        let (mut r, w) = make_buffer_pair(
-            5,
-            10,
-            vec![DataType::INTEGER, DataType::INTEGER, DataType::INTEGER],
-        );
-
+        
+        let (mut r, w) = make_buffer_pair(5, 10, vec![
+            DataType::INTEGER, DataType::INTEGER, DataType::INTEGER]);
+        
         let filter = CsvScan::new(csv_data, w);
         filter.start();
 
@@ -58,20 +61,19 @@ mod tests {
                     assert_eq!(row[0], Data::Integer(1));
                     assert_eq!(row[1], Data::Integer(2));
                     assert_eq!(row[2], Data::Integer(3));
-                }
+                },
                 1 => {
                     assert_eq!(row[0], Data::Integer(4));
                     assert_eq!(row[1], Data::Integer(5));
                     assert_eq!(row[2], Data::Integer(6));
-                }
+
+                },
                 2 => {
                     assert_eq!(row[0], Data::Integer(7));
                     assert_eq!(row[1], Data::Integer(8));
                     assert_eq!(row[2], Data::Integer(9));
                 }
-                _ => {
-                    panic!("too many rows!");
-                }
+                _ => { panic!("too many rows!"); }
             }
         });
 
@@ -86,12 +88,10 @@ mod tests {
 7,8,9
 ".as_bytes();
 
-        let (mut r, w) = make_buffer_pair(
-            5,
-            10,
-            vec![DataType::INTEGER, DataType::TEXT, DataType::INTEGER],
-        );
-
+        
+        let (mut r, w) = make_buffer_pair(5, 10, vec![
+            DataType::INTEGER, DataType::TEXT, DataType::INTEGER]);
+        
         let filter = CsvScan::new(csv_data, w);
         filter.start();
 
@@ -105,22 +105,21 @@ mod tests {
                     assert_eq!(row[0], Data::Integer(1));
                     assert_eq!(row[1], Data::Text(s));
                     assert_eq!(row[2], Data::Integer(3));
-                }
+                },
                 1 => {
                     let s = String::from("hello");
                     assert_eq!(row[0], Data::Integer(4));
                     assert_eq!(row[1], Data::Text(s));
                     assert_eq!(row[2], Data::Integer(6));
-                }
+
+                },
                 2 => {
                     let s = String::from("8");
                     assert_eq!(row[0], Data::Integer(7));
                     assert_eq!(row[1], Data::Text(s));
                     assert_eq!(row[2], Data::Integer(9));
                 }
-                _ => {
-                    panic!("too many rows!");
-                }
+                _ => { panic!("too many rows!"); }
             }
         });
 
