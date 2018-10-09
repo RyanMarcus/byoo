@@ -1,6 +1,7 @@
 use byteorder::{ByteOrder, ReadBytesExt, LittleEndian};
 use std::io::{BufRead, Error, ErrorKind};
 use base64;
+use std::cmp::Ordering;
 
 #[derive(Clone, Debug)]
 pub enum DataType {
@@ -140,6 +141,58 @@ impl Data {
             Data::Real(f) => f.to_string(),
             Data::Text(t) => t,
             Data::Blob(b) => base64::encode(&b)
+        }
+    }
+}
+
+impl PartialOrd for Data {
+    fn partial_cmp(&self, other: &Data) -> Option<Ordering> {
+        match &self {
+            Data::Integer(me) => {
+                if let Data::Integer(other) = other {
+                    return Some(me.cmp(other));
+                } else {
+                    return None;
+                }
+            },
+
+            Data::Real(me) => {
+                if let Data::Real(other) = other {
+                    // define NAN as greater than all other values
+                    if me.is_nan() {
+                        if other.is_nan() {
+                            return Some(Ordering::Equal);
+                        } else {
+                            return Some(Ordering::Greater);
+                        }
+                    }
+
+                    if other.is_nan() {
+                        return Some(Ordering::Less);
+                    }
+
+                    return Some(me.partial_cmp(other).unwrap());
+                    
+                } else {
+                    return None;
+                }
+            },
+
+            Data::Text(me) => {
+                if let Data::Text(other) = other {
+                    return Some(me.cmp(other));
+                } else {
+                    return None;
+                }
+            },
+
+            Data::Blob(me) => {
+                if let Data::Blob(other) = other {
+                    return Some(me.cmp(other));
+                } else {
+                    return None;
+                }
+            }
         }
     }
 }

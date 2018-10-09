@@ -4,6 +4,7 @@ extern crate byteorder;
 extern crate csv;
 extern crate tempfile;
 extern crate base64;
+extern crate binary_heap_plus;
 
 mod data;
 

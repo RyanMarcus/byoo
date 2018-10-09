@@ -29,7 +29,7 @@ impl <T: Write> ColumnarOutput<T> {
         // first, push everything into a spillable buffer.
         iterate_buffer!(self.input, row, {
             for (v, mut sbuf) in row.into_iter().zip(self.int_bufs.iter_mut()) {
-                sbuf.push_row(vec![v.clone()]);
+                sbuf.push_row(&[v.clone()]);
             }
         });
 

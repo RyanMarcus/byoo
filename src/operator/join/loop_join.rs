@@ -24,7 +24,7 @@ impl LoopJoin {
         
         // first, read the left relation into the buffer
         iterate_buffer!(self.left, row, {
-            buf.push_row(row.to_vec());
+            buf.push_row(row);
         });
 
         // next, iterate over the right hand relation

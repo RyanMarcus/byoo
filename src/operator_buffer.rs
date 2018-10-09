@@ -18,6 +18,11 @@ pub struct OperatorWriteBuffer {
     types: Vec<DataType>
 }
 
+pub struct PeekableOperatorReadBuffer {
+    read_buf: OperatorReadBuffer,
+    dq: VecDeque<Vec<Data>>
+}
+
 impl OperatorReadBuffer {
     fn new(send: Sender<RowBuffer>, recv: Receiver<RowBuffer>, types: Vec<DataType>)
            -> OperatorReadBuffer {        
@@ -86,6 +91,49 @@ macro_rules! iterate_buffer {
             ($op_buf).progress();
         }
     };
+}
+
+impl PeekableOperatorReadBuffer {
+    pub fn new(read_buf: OperatorReadBuffer) -> PeekableOperatorReadBuffer {
+        let mut to_r = PeekableOperatorReadBuffer {
+            read_buf,
+            dq: VecDeque::new()
+        };
+
+        to_r.load_next_block();
+
+        return to_r;
+    }
+
+    fn load_next_block(&mut self) {
+        if let Some(rb) = self.read_buf.data() {
+            for row in rb.iter() {
+                self.dq.push_back(row.to_vec());
+            }
+        }
+
+        if !self.dq.is_empty() {
+            self.read_buf.progress();
+        }
+    }
+
+    pub fn peek(&self) -> Option<&Vec<Data>> {
+        if self.dq.is_empty() {
+            return None;
+        }
+
+        return Some(&self.dq[0]);
+    }
+
+    pub fn pop(&mut self) -> Option<Vec<Data>> {
+        let to_r = self.dq.pop_front();
+
+        if self.dq.is_empty() {
+            self.load_next_block();
+        }
+
+        return to_r;
+    }
 }
 
 impl OperatorWriteBuffer {

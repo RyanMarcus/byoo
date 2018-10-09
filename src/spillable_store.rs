@@ -51,7 +51,7 @@ impl WritableSpillableStore {
         };
     }
 
-    pub fn push_row(&mut self, row: Vec<Data>) {
+    pub fn push_row(&mut self, row: &[Data]) {
         // no writing while there is a reader out.
         assert_matches!(self.jh, None);
         
@@ -62,7 +62,7 @@ impl WritableSpillableStore {
         
         if self.data.len() + row.len() < self.max_size {
             // it fits in memory
-            self.data.extend(row);
+            self.data.extend_from_slice(row);
             return;
         }
 
@@ -76,7 +76,7 @@ impl WritableSpillableStore {
             self.writer.write(&d.into_bytes());
         }
 
-        self.data.extend(row);
+        self.data.extend_from_slice(row);
     }
 
     pub fn did_spill(&self) -> bool {
@@ -162,9 +162,9 @@ mod tests {
     fn no_spill_test() {
         let dt = vec![DataType::INTEGER];
         let mut w = WritableSpillableStore::new(100, dt);
-        w.push_row(vec![Data::Integer(5)]);
-        w.push_row(vec![Data::Integer(6)]);
-        w.push_row(vec![Data::Integer(7)]);
+        w.push_row(&[Data::Integer(5)]);
+        w.push_row(&[Data::Integer(6)]);
+        w.push_row(&[Data::Integer(7)]);
 
         let (stats, mut r) = w.read();
 
@@ -193,7 +193,7 @@ mod tests {
         let num_rows: usize = 10;
         
         for i in 0..num_rows {
-            w.push_row(vec![Data::Integer(i as i64)]);
+            w.push_row(&[Data::Integer(i as i64)]);
         }
 
         assert!(w.did_spill());
@@ -218,12 +218,12 @@ mod tests {
         let mut w = WritableSpillableStore::new(100, dt);
 
         for _ in 0..10000 {
-            w.push_row(vec![Data::Integer(5),
-                            Data::Integer(6),
-                            Data::Text(String::from("hello"))]);
-            w.push_row(vec![Data::Integer(-5),
-                            Data::Integer(60),
-                            Data::Text(String::from("world!"))]);
+            w.push_row(&[Data::Integer(5),
+                         Data::Integer(6),
+                         Data::Text(String::from("hello"))]);
+            w.push_row(&[Data::Integer(-5),
+                         Data::Integer(60),
+                         Data::Text(String::from("world!"))]);
 
         }
 
@@ -270,12 +270,12 @@ mod tests {
         let mut w = WritableSpillableStore::new(100, dt);
 
         for _ in 0..10000 {
-            w.push_row(vec![Data::Integer(5),
-                            Data::Integer(6),
-                            Data::Text(String::from("hello"))]);
-            w.push_row(vec![Data::Integer(-5),
-                            Data::Integer(60),
-                            Data::Text(String::from("world!"))]);
+            w.push_row(&[Data::Integer(5),
+                         Data::Integer(6),
+                         Data::Text(String::from("hello"))]);
+            w.push_row(&[Data::Integer(-5),
+                         Data::Integer(60),
+                         Data::Text(String::from("world!"))]);
 
         }
 
