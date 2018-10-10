@@ -1,6 +1,5 @@
 use operator_buffer::{OperatorReadBuffer, OperatorWriteBuffer};
 use serde_json::Value;
-use operator::Operator;
 
 pub struct Project {
     input: OperatorReadBuffer,
@@ -34,7 +33,7 @@ impl Project {
 mod tests {
 
     use operator_buffer::make_buffer_pair;
-    use operator::{Operator, Project};
+    use operator::{Project};
     use data::{DataType, Data};
     
     #[test]

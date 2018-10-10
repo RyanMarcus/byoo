@@ -3,7 +3,7 @@ use std::io::{BufRead, Error, ErrorKind};
 use base64;
 use std::cmp::Ordering;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash)]
 pub enum DataType {
     INTEGER,
     REAL,
@@ -38,6 +38,16 @@ impl DataType {
             DataType::TEXT => 3,
             DataType::BLOB => 4
         };
+    }
+
+    pub fn from_string_code(code: &str) -> DataType {
+        match code {
+            "INTEGER" => DataType::INTEGER,
+            "TEXT" => DataType::TEXT,
+            "REAL" => DataType::REAL,
+            "BLOB" => DataType::BLOB,
+            _ => panic!("unknown datatype string")
+        }
     }
     
     pub fn read_item<T: BufRead>(&self, reader: &mut T) -> Result<Data, Error> {
