@@ -1,7 +1,8 @@
 use operator_buffer::{OperatorReadBuffer, OperatorWriteBuffer};
 use data::Data;
+use operator::ConstructableOperator;
 
-struct Filter {
+pub struct Filter {
     input: OperatorReadBuffer,
     output: OperatorWriteBuffer,
     predicate: fn(&[Data]) -> bool
@@ -25,6 +26,16 @@ impl Filter {
             self.output.write(row.to_vec());
         });
         self.output.flush();
+    }
+}
+
+impl ConstructableOperator for Filter {
+    fn from_buffers(output: Option<OperatorWriteBuffer>,
+                    input: Vec<OperatorReadBuffer>,
+                    file: Option<File>,
+                    options: serde_json::Value) -> Self {
+        let o = output.unwrap();
+        let i = output.unwrap();
     }
 }
 

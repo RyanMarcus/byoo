@@ -1,8 +1,83 @@
 use data::{Data, DataType};
 use serde_json;
 use std::collections::{VecDeque};
-use operator_buffer::{OperatorReadBuffer, OperatorWriteBuffer};
-use operator::{ColumnUnion};
+use operator_buffer::{OperatorReadBuffer, OperatorWriteBuffer, make_buffer_pair};
+use operator::{ConstructableOperator, Filter};
+use operator::output::{CsvOutput, ColumnarOutput};
+use operator::scan::{CsvScan, ColumnarScan};
+use std::fs::File;
+use std::fmt;
+use std::thread;
+use std::thread::JoinHandle;
+
+enum Operator {
+    Union, Project, Filter, LoopJoin, MergeJoin,
+    Sort, ColumnarRead, CSVRead, CSVOut, ColumnarOut
+}
+
+impl Operator {
+    fn from_opcode(opcode: &str) -> Operator {
+        return match opcode {
+            "union" => Operator::Union,
+            "project" => Operator::Project,
+            "filter" => Operator::Filter,
+            "loop join" => Operator::LoopJoin,
+            "merge join" => Operator::MergeJoin,
+            "sort" => Operator::Sort,
+            "columnar read" => Operator::ColumnarRead,
+            "csv read" => Operator::CSVRead,
+            "csv out" => Operator::CSVOut,
+            "columnar out" => Operator::ColumnarOut,
+            _ => panic!("invalid opcode")
+        };
+    }
+
+    /*fn run_with_buffers(
+        &self,
+        output: Option<OperatorWriteBuffer>,
+        file: Option<File>) -> Option<Vec<OperatorReadBuffer>> {
+        
+        return match &self {
+            Operator::CSVOut => CsvOutput::from_buffers(output, input, file),
+            Operator::ColumnarOut => ColumnarOutput::from_buffers(output, input, file),
+            _ => panic!()
+        };
+    }*/
+
+    fn requires_file(&self) -> bool {
+        match self {
+            Operator::Union => false,
+            Operator::Project => false, 
+            Operator::Filter => false, 
+            Operator::LoopJoin => false, 
+            Operator::MergeJoin => false,
+            Operator::Sort => false,
+            Operator::ColumnarRead => true,
+            Operator::CSVRead => true,
+            Operator::CSVOut => true,
+            Operator::ColumnarOut => true
+        }
+    }
+
+}
+
+impl fmt::Display for Operator {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Operator::Union => write!(f, "union"),
+            Operator::Project => write!(f, "project"),
+            Operator::Filter => write!(f, "filter"),
+            Operator::LoopJoin => write!(f, "loop join"),
+            Operator::MergeJoin => write!(f, "merge join"),
+            Operator::Sort => write!(f, "sort"),
+            Operator::ColumnarRead => write!(f, "columnar read"),
+            Operator::CSVRead => write!(f, "csv read"),
+            Operator::CSVOut => write!(f, "csv out"),
+            Operator::ColumnarOut => write!(f, "columnar out")
+        }
+    }
+}
+
 
 enum InType {
     Unknown,
@@ -25,20 +100,18 @@ enum ChildCount {
 
 struct OperatorNode {
     id: usize,
-    opcode: String,
+    opcode: Operator,
     in_types: InType,
     out_type: OutType,
     children: Vec<OperatorNode>,
     options: serde_json::Value
 }
 
-fn get_operator_out_type(opcode: &String,
+fn get_operator_out_type(opcode: &Operator,
                          options: &serde_json::Value,
                          in_types: &[Vec<DataType>]) -> OutType {
-    match opcode.as_str() {
-        "loop join" |
-        "merge join" |
-        "union" => {
+    match opcode {
+        Operator::LoopJoin | Operator::MergeJoin | Operator::Union => {
             // flattens all the types
             return OutType::Known(
                 in_types.iter()
@@ -46,7 +119,7 @@ fn get_operator_out_type(opcode: &String,
                     .cloned()
                     .collect());
         },
-        "project" => {
+        Operator::Project => {
             return OutType::Known(
                 options["keep_cols"].as_array().unwrap()
                     .iter()
@@ -54,22 +127,27 @@ fn get_operator_out_type(opcode: &String,
                     .map(|idx| in_types[0][idx].clone())
                     .collect());
         },
-        "sort" |
-        "filter" => {
+        Operator::Sort | Operator::Filter => {
             return OutType::Known(in_types[0].clone());
         },
-        "columnar read" |
-        "csv read" => {
+        Operator::ColumnarRead | Operator::CSVRead => {
             return OutType::Known(
                 options["types"].as_array().unwrap()
                     .iter()
                     .map(|v| DataType::from_string_code(v.as_str().unwrap()))
                     .collect());
         },
-        "columnar out" |
-        "csv out" => return OutType::None,
-        _ => panic!("{} is an invalid opcode for internal node", opcode)
+        Operator::ColumnarOut | Operator::CSVOut => return OutType::None
     };
+}
+
+macro_rules! spawn_op {
+    ($x: ident, $p1: expr, $p2: expr, $p3: expr, $p4: expr) => {{
+        let op = $x::from_buffers($p1, $p2, $p3, $p4);
+        thread::spawn(move || {
+            op.start();
+        })
+    }}
 }
 
 impl OperatorNode {
@@ -77,7 +155,8 @@ impl OperatorNode {
            options: serde_json::Value) -> OperatorNode {
 
         return OperatorNode {
-            opcode, options, id,
+            opcode: Operator::from_opcode(opcode.as_str()),
+            options, id,
             in_types: InType::Unknown,
             out_type: OutType::Unknown,
             children: Vec::new()
@@ -129,32 +208,41 @@ impl OperatorNode {
         };
     }
     
-    pub fn run(self, output: Option<OperatorWriteBuffer>,
-               inputs: Option<Vec<OperatorReadBuffer>>) {
-        match self.opcode.as_str() {
-            "union" => {
+    pub fn run(self, output: Option<OperatorWriteBuffer>) -> JoinHandle<()> {
 
-            },
+        let f = if self.opcode.requires_file() {
+            // we need a file -- get it from the options.
+            let path = self.options["file"].as_str().unwrap();
+            Some(File::open(path).unwrap())
+        } else {
+            None
+        };
 
-            _ => panic!("unknown opcode")
+        // construct the input buffer(s) for this operator
+        let mut read_bufs = Vec::new();
+        let mut write_bufs = Vec::new();
+        if let InType::Known(v) = self.in_types {
+            for dts in v.iter() {
+                let (r, w) = make_buffer_pair(5, 4096, dts.clone());
+                read_bufs.push(r);
+                write_bufs.push(w);
+            }
+        } else {
+            panic!("Not-known input types in run");
+        };
+
+        return match self.opcode {
+            Operator::CSVOut => spawn_op!(CsvOutput, output, read_bufs, f, self.options),
+            Operator::CSVRead => spawn_op!(CsvScan, output, read_bufs, f, self.options),
+            Operator::ColumnarOut => spawn_op!(ColumnarOutput, output, read_bufs, f, self.options),
+            Operator::ColumnarRead => spawn_op!(ColumnarScan, output, read_bufs, f, self.options),
+            Operator::Filter => spawn_op!(Filter, output, read_bufs, f, self.options),
+            Operator::LoopJoin => spawn_op!(LoopJoin, output, read_bufs, f, self.options),
+            Operator::MergeJoin => spawn_op!(MergeJoin, output, read_bufs, f, self.options),
+            Operator::Project => spawn_op!(Project, output, read_bufs, f, self.options),
+            Operator::Sort => spawn_op!(Sort, output, read_bufs, f, self.options)
         };
     }
-}
-
-fn is_valid_opcode(op: &str) -> bool {
-    return match op {
-        "union" => true,
-        "project" => true,
-        "filter" => true,
-        "loop join" => true,
-        "merge join" => true,
-        "sort" => true,
-        "columnar read" => true,
-        "csv read" => true,
-        "csv out" => true,
-        "columnar out" => true,
-        _ => false
-    };
 }
 
 fn inputs_per_op(op: &str) -> ChildCount {
@@ -176,10 +264,6 @@ fn inputs_per_op(op: &str) -> ChildCount {
 fn create_op_tree(mut root: serde_json::Value, nxt_id: usize)
                   -> (usize, OperatorNode) {
     let opcode = root["op"].as_str().unwrap();
-
-    if !is_valid_opcode(opcode) {
-        panic!("invalid opcode in input: {}", opcode);
-    }
 
     let mut to_r = OperatorNode::new(nxt_id,
                                      String::from(opcode),
@@ -216,7 +300,7 @@ fn create_op_tree(mut root: serde_json::Value, nxt_id: usize)
 fn label_for_node(node: &OperatorNode) -> String {
     let mut to_r = String::new();
 
-    to_r.push_str(format!("<b>{}</b> ({})<br/>", node.opcode,
+    to_r.push_str(format!("<b>{}</b> ({})<br/>", node.opcode.to_string(),
                           node.id).as_str());
 
     if let Some(opts) = node.options.as_object() {

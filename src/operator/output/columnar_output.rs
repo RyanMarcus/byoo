@@ -1,7 +1,10 @@
-use operator_buffer::OperatorReadBuffer;
+use operator_buffer::{OperatorWriteBuffer, OperatorReadBuffer};
 use spillable_store::WritableSpillableStore;
-use std::io::Write;
+use std::io::{BufWriter, Write};
+use std::fs::File;
 use byteorder::{WriteBytesExt, LittleEndian};
+use operator::ConstructableOperator;
+use serde_json;
 
 pub struct ColumnarOutput<T> {
     input: OperatorReadBuffer,
@@ -77,6 +80,25 @@ impl <T: Write> ColumnarOutput<T> {
         }
     }
 }
+
+impl ConstructableOperator for ColumnarOutput<BufWriter<File>> {
+    fn from_buffers(output: Option<OperatorWriteBuffer>,
+                    input: Vec<OperatorReadBuffer>,
+                    file: Option<File>,
+                    options: serde_json::Value) -> Self {
+
+        assert!(output.is_none());
+        let f = file.unwrap();
+
+        let mut inp = input;
+        let inp_v = inp.remove(0);
+        assert!(inp.is_empty());
+
+        return ColumnarOutput::new(4096, inp_v, BufWriter::new(f));
+    }
+    
+}
+
 
 #[cfg(test)]
 mod tests {

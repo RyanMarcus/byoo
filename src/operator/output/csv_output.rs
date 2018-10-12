@@ -1,6 +1,9 @@
-use operator_buffer::OperatorReadBuffer;
-use std::io::Write;
+use operator_buffer::{OperatorWriteBuffer, OperatorReadBuffer};
+use std::io::{Write, BufWriter};
+use std::fs::File;
 use csv::Writer;
+use operator::ConstructableOperator;
+use serde_json;
 
 pub struct CsvOutput<T> {
     input: OperatorReadBuffer,
@@ -14,7 +17,7 @@ impl <T: Write> CsvOutput<T> {
             input, output, headers
         };
     }
-
+    
     pub fn start(mut self) {
         let mut csv = Writer::from_writer(self.output);
 
@@ -28,6 +31,24 @@ impl <T: Write> CsvOutput<T> {
             csv.write_record(row_strs);
         });
     }
+}
+
+impl ConstructableOperator for CsvOutput<BufWriter<File>> {
+    fn from_buffers(output: Option<OperatorWriteBuffer>,
+                    input: Vec<OperatorReadBuffer>,
+                    file: Option<File>,
+                    options: serde_json::Value) -> Self {
+
+        assert!(output.is_none());
+        let f = file.unwrap();
+
+        let mut inp = input;
+        let inp_v = inp.remove(0);
+        assert!(inp.is_empty());
+
+        return CsvOutput::new(inp_v, BufWriter::new(f), vec![]);
+    }
+    
 }
 
 #[cfg(test)]

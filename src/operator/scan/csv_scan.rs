@@ -1,7 +1,10 @@
 use data::DataType;
-use std::io::Read;
+use std::io::{Read, BufReader};
+use std::fs::File;
 use csv::Reader;
-use operator_buffer::OperatorWriteBuffer;
+use operator_buffer::{OperatorReadBuffer, OperatorWriteBuffer};
+use operator::ConstructableOperator;
+use serde_json;
 
 pub struct CsvScan<T> {
     reader: T,
@@ -16,7 +19,7 @@ impl <T: Read> CsvScan<T> {
         };
     }
     
-    fn start(mut self) {
+    pub fn start(mut self) {
         let mut rdr = Reader::from_reader(self.reader);
         for result in rdr.records() {
             let record = result.unwrap();
@@ -28,6 +31,19 @@ impl <T: Read> CsvScan<T> {
         }
 
         self.output.flush();
+    }
+}
+
+impl ConstructableOperator for CsvScan<BufReader<File>> {
+    fn from_buffers(output: Option<OperatorWriteBuffer>,
+                    input: Vec<OperatorReadBuffer>,
+                    file: Option<File>,
+                    options: serde_json::Value) -> Self {
+        assert!(input.is_empty());
+        let out = output.unwrap();
+        let f = file.unwrap();
+
+        return CsvScan::new(BufReader::new(f), out);
     }
 }
 
