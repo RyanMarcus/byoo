@@ -1,6 +1,11 @@
 use operator_buffer::{OperatorReadBuffer, OperatorWriteBuffer, PeekableOperatorReadBuffer};
+use operator::ConstructableOperator;
 use data::{Data};
 use std::cmp::Ordering;
+use serde_json;
+use predicate::Predicate;
+use std::fs::File;
+
 
 
 pub struct MergeJoin {
@@ -136,7 +141,34 @@ impl MergeJoin {
             }
         }
     }
+}
 
+impl ConstructableOperator for MergeJoin {
+    fn from_buffers(output: Option<OperatorWriteBuffer>,
+                    mut input: Vec<OperatorReadBuffer>,
+                    file: Option<File>,
+                    options: serde_json::Value) -> Self {
+        
+        assert!(file.is_none());
+        let o = output.unwrap();
+
+        assert_eq!(input.len(), 2);
+        let lb = input.remove(0);
+        let rb = input.remove(0);
+
+        let left_cols = options["left_cols"].as_array().unwrap()
+            .iter()
+            .map(|v| v.as_i64().unwrap() as usize)
+            .collect();
+
+        let right_cols = options["right_cols"].as_array().unwrap()
+            .iter()
+            .map(|v| v.as_i64().unwrap() as usize)
+            .collect();
+
+        
+        return MergeJoin::new(lb, rb, o, left_cols, right_cols);
+    }
 }
 
 #[cfg(test)]

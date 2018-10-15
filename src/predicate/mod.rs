@@ -4,7 +4,7 @@ use data::{Data};
 use either::*;
 
 
-enum Predicate {
+pub enum Predicate {
     And(Box<Predicate>, Box<Predicate>),
     Or(Box<Predicate>, Box<Predicate>),
     Not(Box<Predicate>),
@@ -29,7 +29,7 @@ macro_rules! apply_op {
         match $val {
             Left(int_val) => {
                 if let Data::Integer(i) = $data {
-                    i $op int_val.clone()
+                    i $op int_val
                 } else {
                     panic!("Comparing non-integer column to integer value in predicate");
                 }
@@ -37,7 +37,7 @@ macro_rules! apply_op {
             
             Right(float_val) => {
                 if let Data::Real(f) = $data {
-                    f $op float_val.clone()
+                    f $op float_val
                 } else {
                     panic!("Comparing non-float column to float value in predicate");
                 }
@@ -46,8 +46,18 @@ macro_rules! apply_op {
     }
 }
 
+macro_rules! overflow_access {
+    ($data1: expr, $data2: expr, $idx: expr) => {
+        if ($data1).len() > $idx {
+            &($data1)[$idx]
+        } else {
+            &($data2)[$idx]
+        }
+    }
+}
+
 impl Predicate {
-    fn from_json(tree: &serde_json::Value) -> Predicate {
+    pub fn from_json(tree: &serde_json::Value) -> Predicate {
         match tree["op"].as_str().unwrap() {
             "and" => {
                 let mut children = tree["children"].as_array().unwrap();
@@ -110,33 +120,47 @@ impl Predicate {
     }
 
     pub fn eval(&self, data: &[Data]) -> bool {
+        return self.eval_with_2(data, &[]);
+    }
+    
+    pub fn eval_with_2(&self, data: &[Data], data2: &[Data]) -> bool {
         match &self {
             Predicate::And(p1, p2) => {
-                return p1.eval(data) && p2.eval(data);
-            },
+                return p1.eval_with_2(data, data2) && p2.eval_with_2(data, data2);
+            }
 
             Predicate::Or(p1, p2) => {
-                return p1.eval(data) || p2.eval(data);
+                return p1.eval_with_2(data, data2) || p2.eval_with_2(data, data2);
             },
 
             Predicate::Not(p1) => {
-                return !p1.eval(data);
+                return !p1.eval_with_2(data, data2);
             },
 
             Predicate::Lt(col_idx, val) => {
-                return apply_op!(val, data[col_idx.clone()], <);
+                return apply_op!(val,
+                                 overflow_access!(data, data2,
+                                                  col_idx.clone())
+                                 , <);
             },
 
             Predicate::Gt(col_idx, val) => {
-                return apply_op!(val, data[col_idx.clone()], >);
+                return apply_op!(val,
+                                 overflow_access!(data, data2,
+                                                  col_idx.clone())
+                                 , >);
             },
 
             Predicate::Eq(col_idx, val) => {
-                return apply_op!(val, data[col_idx.clone()], ==);
+                return apply_op!(val,
+                                 overflow_access!(data, data2,
+                                                  col_idx.clone())
+                                 , ==);
             },
 
             Predicate::Contains(col_idx, string_val) => {
-                if let Data::Text(ref s) = data[col_idx.clone()] {
+                let d = overflow_access!(data, data2, col_idx.clone());
+                if let Data::Text(ref s) = d {
                     return s.contains(string_val);
                 }
 

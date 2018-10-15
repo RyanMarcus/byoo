@@ -21,6 +21,7 @@ mod operator;
 mod predicate;
 mod compile;
 
+pub use compile::compile;
 
 #[cfg(test)]
 mod tests {

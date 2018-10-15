@@ -1,43 +1,80 @@
 use operator_buffer::{OperatorReadBuffer, OperatorWriteBuffer};
 use data::Data;
 use operator::ConstructableOperator;
+use std::fs::File;
+use serde_json;
+use predicate::Predicate;
+use either::*;
 
 pub struct Filter {
     input: OperatorReadBuffer,
     output: OperatorWriteBuffer,
-    predicate: fn(&[Data]) -> bool
+    predicate: Either<Predicate, fn(&[Data]) -> bool>
 }
 
 
 impl Filter {
-    pub fn new(input: OperatorReadBuffer, output: OperatorWriteBuffer,
-               predicate: fn(&[Data]) -> bool) -> Filter {
+    fn new(input: OperatorReadBuffer, output: OperatorWriteBuffer,
+           predicate: fn(&[Data]) -> bool) -> Filter {
         return Filter {
-            input, output, predicate
+            input, output,
+            predicate: Right(predicate)
         };
     }
 
-    pub fn start(mut self) {
-        iterate_buffer!(self.input, row, {
-            if !(self.predicate)(row) {
-                continue;
-            }
+    fn new_with_interp(input: OperatorReadBuffer, output: OperatorWriteBuffer,
+                       predicate: Predicate) -> Filter {
+        return Filter {
+            input, output,
+            predicate: Left(predicate)
+        };
 
-            self.output.write(row.to_vec());
-        });
+    }
+
+    pub fn start(mut self) {
+        match self.predicate {
+            Left(p) => {
+                iterate_buffer!(self.input, row, {
+                    if !(p.eval(row)) {
+                        continue;
+                    }
+                    
+                    self.output.write(row.to_vec());
+                });
+            },
+
+            Right(f) => {
+                iterate_buffer!(self.input, row, {
+                    if !(f)(row) {
+                        continue;
+                    }
+
+                    self.output.write(row.to_vec());
+                });
+            }
+        };
+    
         self.output.flush();
     }
 }
 
-/*impl ConstructableOperator for Filter {
+impl ConstructableOperator for Filter {
     fn from_buffers(output: Option<OperatorWriteBuffer>,
-                    input: Vec<OperatorReadBuffer>,
+                    mut input: Vec<OperatorReadBuffer>,
                     file: Option<File>,
                     options: serde_json::Value) -> Self {
+        
+        assert!(file.is_none());
         let o = output.unwrap();
-        let i = output.unwrap();
+
+        assert_eq!(input.len(), 1);
+        let ib = input.remove(0);
+
+        let pred = Predicate::from_json(&options["predicate"]);
+
+        return Filter::new_with_interp(ib, o, pred);
     }
-}*/
+}
 
 
 #[cfg(test)]

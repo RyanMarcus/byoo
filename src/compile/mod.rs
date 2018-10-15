@@ -2,9 +2,10 @@ use data::{Data, DataType};
 use serde_json;
 use std::collections::{VecDeque};
 use operator_buffer::{OperatorReadBuffer, OperatorWriteBuffer, make_buffer_pair};
-use operator::{ConstructableOperator, Filter};
+use operator::{ConstructableOperator, Filter, Project, Sort, ColumnUnion};
 use operator::output::{CsvOutput, ColumnarOutput};
 use operator::scan::{CsvScan, ColumnarScan};
+use operator::join::{LoopJoin, MergeJoin};
 use std::fs::File;
 use std::fmt;
 use std::thread;
@@ -32,19 +33,7 @@ impl Operator {
         };
     }
 
-    /*fn run_with_buffers(
-        &self,
-        output: Option<OperatorWriteBuffer>,
-        file: Option<File>) -> Option<Vec<OperatorReadBuffer>> {
-        
-        return match &self {
-            Operator::CSVOut => CsvOutput::from_buffers(output, input, file),
-            Operator::ColumnarOut => ColumnarOutput::from_buffers(output, input, file),
-            _ => panic!()
-        };
-    }*/
-
-    fn requires_file(&self) -> bool {
+    fn requires_input_file(&self) -> bool {
         match self {
             Operator::Union => false,
             Operator::Project => false, 
@@ -54,10 +43,26 @@ impl Operator {
             Operator::Sort => false,
             Operator::ColumnarRead => true,
             Operator::CSVRead => true,
+            Operator::CSVOut => false,
+            Operator::ColumnarOut => false
+        }
+    }
+
+    fn requires_output_file(&self) -> bool {
+        match self {
+            Operator::Union => false,
+            Operator::Project => false, 
+            Operator::Filter => false, 
+            Operator::LoopJoin => false, 
+            Operator::MergeJoin => false,
+            Operator::Sort => false,
+            Operator::ColumnarRead => false,
+            Operator::CSVRead => false,
             Operator::CSVOut => true,
             Operator::ColumnarOut => true
         }
     }
+
 
 }
 
@@ -86,7 +91,7 @@ enum InType {
 }
 
 #[derive(Debug)]
-enum OutType {
+pub enum OutType {
     Unknown,
     None,
     Known(Vec<DataType>)
@@ -98,7 +103,7 @@ enum ChildCount {
     Specific(usize)
 }
 
-struct OperatorNode {
+pub struct OperatorNode {
     id: usize,
     opcode: Operator,
     in_types: InType,
@@ -121,7 +126,7 @@ fn get_operator_out_type(opcode: &Operator,
         },
         Operator::Project => {
             return OutType::Known(
-                options["keep_cols"].as_array().unwrap()
+                options["cols"].as_array().unwrap()
                     .iter()
                     .map(|v| v.as_i64().unwrap() as usize)
                     .map(|idx| in_types[0][idx].clone())
@@ -163,11 +168,7 @@ impl OperatorNode {
         };
     }
 
-    pub fn set_out_type(&mut self, otype: OutType) {
-        self.out_type = otype;
-    }
-
-    pub fn add_child(&mut self, child: OperatorNode) {
+    fn add_child(&mut self, child: OperatorNode) {
         self.children.push(child);
     }
 
@@ -186,7 +187,7 @@ impl OperatorNode {
     }
 
 
-    pub fn derive_types(&mut self) {
+    fn derive_types(&mut self) {
         if let OutType::Known(_) = self.out_type {
             // we have already derived our type
             return;
@@ -207,13 +208,20 @@ impl OperatorNode {
             InType::Known(my_in)
         };
     }
-    
-    pub fn run(self, output: Option<OperatorWriteBuffer>) -> JoinHandle<()> {
 
-        let f = if self.opcode.requires_file() {
-            // we need a file -- get it from the options.
+    pub fn start(self) -> JoinHandle<()> {
+        return self.run(None);
+    }
+    
+    fn run(self, output: Option<OperatorWriteBuffer>) -> JoinHandle<()> {
+
+        // check to see if we need an input or output file
+        let f = if self.opcode.requires_input_file() {
             let path = self.options["file"].as_str().unwrap();
             Some(File::open(path).unwrap())
+        } else if self.opcode.requires_output_file() {
+            let path = self.options["file"].as_str().unwrap();
+            Some(File::create(path).unwrap())
         } else {
             None
         };
@@ -221,28 +229,41 @@ impl OperatorNode {
         // construct the input buffer(s) for this operator
         let mut read_bufs = Vec::new();
         let mut write_bufs = Vec::new();
-        if let InType::Known(v) = self.in_types {
-            for dts in v.iter() {
-                let (r, w) = make_buffer_pair(5, 4096, dts.clone());
-                read_bufs.push(r);
-                write_bufs.push(w);
+        match self.in_types {
+            InType::Known(v) => {
+                for dts in v.iter() {
+                    let (r, w) = make_buffer_pair(5, 4096, dts.clone());
+                    read_bufs.push(r);
+                    write_bufs.push(w);
+                }
+            },
+            InType::None => {
+                // nothing to do.
+            },
+            InType::Unknown => {
+                panic!("Unknown input types in run for operator {}", self.opcode);
             }
-        } else {
-            panic!("Not-known input types in run");
         };
 
-        return match self.opcode {
+        let jh = match self.opcode {
             Operator::CSVOut => spawn_op!(CsvOutput, output, read_bufs, f, self.options),
             Operator::CSVRead => spawn_op!(CsvScan, output, read_bufs, f, self.options),
             Operator::ColumnarOut => spawn_op!(ColumnarOutput, output, read_bufs, f, self.options),
             Operator::ColumnarRead => spawn_op!(ColumnarScan, output, read_bufs, f, self.options),
-            //Operator::Filter => spawn_op!(Filter, output, read_bufs, f, self.options),
-            //Operator::LoopJoin => spawn_op!(LoopJoin, output, read_bufs, f, self.options),
-            //Operator::MergeJoin => spawn_op!(MergeJoin, output, read_bufs, f, self.options),
-            //Operator::Project => spawn_op!(Project, output, read_bufs, f, self.options),
-            //Operator::Sort => spawn_op!(Sort, output, read_bufs, f, self.options)
-            _ => unimplemented!()
+            Operator::Filter => spawn_op!(Filter, output, read_bufs, f, self.options),
+            Operator::LoopJoin => spawn_op!(LoopJoin, output, read_bufs, f, self.options),
+            Operator::MergeJoin => spawn_op!(MergeJoin, output, read_bufs, f, self.options),
+            Operator::Project => spawn_op!(Project, output, read_bufs, f, self.options),
+            Operator::Sort => spawn_op!(Sort, output, read_bufs, f, self.options),
+            Operator::Union => spawn_op!(ColumnUnion, output, read_bufs, f, self.options)
         };
+
+        //  next, we have to start the children.
+        for (op, wb) in self.children.into_iter().zip(write_bufs) {
+            op.run(Some(wb));
+        }
+        
+        return jh;
     }
 }
 
@@ -262,7 +283,14 @@ fn inputs_per_op(op: &str) -> ChildCount {
     };
 }
 
-fn create_op_tree(mut root: serde_json::Value, nxt_id: usize)
+pub fn compile(json: String) -> OperatorNode {
+    let parsed = serde_json::from_str(json.as_str())
+        .unwrap();
+
+    return create_op_tree(parsed, 0).1;
+}
+
+fn create_op_tree(root: serde_json::Value, nxt_id: usize)
                   -> (usize, OperatorNode) {
     let opcode = root["op"].as_str().unwrap();
 
@@ -363,7 +391,7 @@ mod tests {
     \"input\": [
         { \"op\": \"project\",
           \"options\": {
-              \"keep_cols\": [0, 1, 3]
+              \"cols\": [0, 1, 3]
           },
 
           \"input\": [
@@ -388,5 +416,4 @@ mod tests {
         assert!(gv.contains("project"));
         assert!(gv.contains("csv read"));
     }
-
 }

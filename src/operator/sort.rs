@@ -1,9 +1,12 @@
 use operator_buffer::{OperatorReadBuffer, OperatorWriteBuffer, PeekableOperatorReadBuffer};
+use operator::ConstructableOperator;
 use spillable_store::WritableSpillableStore;
 use data::{Data, DataType};
 use std::mem;
 use std::cmp::Ordering;
 use binary_heap_plus::*;
+use std::fs::File;
+use serde_json;
 
 pub struct Sort {
     input: OperatorReadBuffer,
@@ -44,7 +47,7 @@ impl Sort {
         return store;
     }
     
-    fn start(mut self) {
+    pub fn start(mut self) {
         let types = self.input.types().to_vec();
         let by_cols = self.by_cols.clone();
         let mut chunks = Vec::new();
@@ -119,6 +122,27 @@ impl Sort {
                 bheap.push(next_reader);
             }
         }
+    }
+}
+
+impl ConstructableOperator for Sort {
+    fn from_buffers(output: Option<OperatorWriteBuffer>,
+                    mut input: Vec<OperatorReadBuffer>,
+                    file: Option<File>,
+                    options: serde_json::Value) -> Self {
+        
+        assert!(file.is_none());
+        let ob = output.unwrap();
+
+        assert_eq!(input.len(), 1);
+        let ib = input.remove(0);
+        
+        let cols = options["cols"].as_array().unwrap()
+            .iter()
+            .map(|v| v.as_i64().unwrap() as usize)
+            .collect();
+        
+        return Sort::new(ib, ob, cols, 4096);
     }
 }
 

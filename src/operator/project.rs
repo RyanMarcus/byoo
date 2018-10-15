@@ -1,5 +1,7 @@
 use operator_buffer::{OperatorReadBuffer, OperatorWriteBuffer};
-use serde_json::Value;
+use operator::ConstructableOperator;
+use serde_json;
+use std::fs::File;
 
 pub struct Project {
     input: OperatorReadBuffer,
@@ -25,6 +27,27 @@ impl Project {
 
             self.output.write(new_row);
         });
+    }
+}
+
+impl ConstructableOperator for Project {
+    fn from_buffers(output: Option<OperatorWriteBuffer>,
+                    mut input: Vec<OperatorReadBuffer>,
+                    file: Option<File>,
+                    options: serde_json::Value) -> Self {
+        
+        assert!(file.is_none());
+        let o = output.unwrap();
+
+        assert_eq!(input.len(), 1);
+        let inp = input.remove(0);
+
+        let cols = options["cols"].as_array().unwrap()
+            .iter()
+            .map(|v| v.as_i64().unwrap() as usize)
+            .collect();
+
+        return Project::new(inp, o, cols);
     }
 }
 

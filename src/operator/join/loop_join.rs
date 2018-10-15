@@ -1,12 +1,17 @@
 use operator_buffer::{OperatorReadBuffer, OperatorWriteBuffer};
+use operator::ConstructableOperator;
 use spillable_store::WritableSpillableStore;
 use data::{Data};
+use serde_json;
+use predicate::Predicate;
+use either::*;
+use std::fs::File;
 
 pub struct LoopJoin {
     left: OperatorReadBuffer,
     right: OperatorReadBuffer,
     out: OperatorWriteBuffer,
-    predicate: fn(&[Data], &[Data]) -> bool,
+    predicate: Either<Predicate, fn(&[Data], &[Data]) -> bool>
 }
 
 impl LoopJoin {
@@ -14,7 +19,15 @@ impl LoopJoin {
            out: OperatorWriteBuffer, predicate: fn(&[Data], &[Data]) -> bool)
            -> LoopJoin {
         return LoopJoin {
-            left, right, out, predicate
+            left, right, out, predicate: Right(predicate)
+        };
+    }
+
+    pub fn new_with_interp(left: OperatorReadBuffer, right: OperatorReadBuffer,
+                           out: OperatorWriteBuffer, predicate: Predicate)
+                           -> LoopJoin {
+        return LoopJoin {
+            left, right, out, predicate: Left(predicate)
         };
     }
 
@@ -28,18 +41,56 @@ impl LoopJoin {
         });
 
         // next, iterate over the right hand relation
-        iterate_buffer!(self.right, right_row, {
-            let (_, mut left_data) = buf.read();
-            iterate_buffer!(left_data, left_row, {
-                if (self.predicate)(left_row, right_row) {
-                    // it's a match! it is in the join result.
-                    let mut out_row = Vec::new();
-                    out_row.extend_from_slice(left_row);
-                    out_row.extend_from_slice(right_row);
-                    self.out.write(out_row);
-                }
-            });
-        });
+        match self.predicate {
+            Right(f) => {
+                iterate_buffer!(self.right, right_row, {
+                    let (_, mut left_data) = buf.read();
+                    iterate_buffer!(left_data, left_row, {
+                        if (f)(left_row, right_row) {
+                            // it's a match! it is in the join result.
+                            let mut out_row = Vec::new();
+                            out_row.extend_from_slice(left_row);
+                            out_row.extend_from_slice(right_row);
+                            self.out.write(out_row);
+                        }
+                    });
+                });
+            },
+
+            Left(p) => {
+                iterate_buffer!(self.right, right_row, {
+                    let (_, mut left_data) = buf.read();
+                    iterate_buffer!(left_data, left_row, {
+                        if p.eval_with_2(left_row, right_row) {
+                            // it's a match! it is in the join result.
+                            let mut out_row = Vec::new();
+                            out_row.extend_from_slice(left_row);
+                            out_row.extend_from_slice(right_row);
+                            self.out.write(out_row);
+                        }
+                    });
+                });
+            }
+        }
+    }
+}
+
+impl ConstructableOperator for LoopJoin {
+    fn from_buffers(output: Option<OperatorWriteBuffer>,
+                    mut input: Vec<OperatorReadBuffer>,
+                    file: Option<File>,
+                    options: serde_json::Value) -> Self {
+        
+        assert!(file.is_none());
+        let o = output.unwrap();
+
+        assert_eq!(input.len(), 2);
+        let lb = input.remove(0);
+        let rb = input.remove(0);
+
+        let pred = Predicate::from_json(&options["predicate"]);
+
+        return LoopJoin::new_with_interp(lb, rb, o, pred);
     }
 }
 

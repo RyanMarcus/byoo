@@ -1,6 +1,9 @@
 use operator_buffer::{OperatorReadBuffer, OperatorWriteBuffer};
+use operator::ConstructableOperator;
 use data::{Data};
 use std::collections::VecDeque;
+use serde_json;
+use std::fs::File;
 
 pub struct ColumnUnion {
     readers: Vec<OperatorReadBuffer>,
@@ -72,6 +75,19 @@ impl ColumnUnion {
             curr_row.clear();
         }
         
+    }
+}
+
+impl ConstructableOperator for ColumnUnion {
+    fn from_buffers(output: Option<OperatorWriteBuffer>,
+                    input: Vec<OperatorReadBuffer>,
+                    file: Option<File>,
+                    options: serde_json::Value) -> Self {
+        
+        assert!(file.is_none());
+        let o = output.unwrap();
+
+        return ColumnUnion::new(input, o);
     }
 }
 
