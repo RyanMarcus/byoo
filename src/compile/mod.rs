@@ -236,11 +236,12 @@ impl OperatorNode {
             Operator::CSVRead => spawn_op!(CsvScan, output, read_bufs, f, self.options),
             Operator::ColumnarOut => spawn_op!(ColumnarOutput, output, read_bufs, f, self.options),
             Operator::ColumnarRead => spawn_op!(ColumnarScan, output, read_bufs, f, self.options),
-            Operator::Filter => spawn_op!(Filter, output, read_bufs, f, self.options),
-            Operator::LoopJoin => spawn_op!(LoopJoin, output, read_bufs, f, self.options),
-            Operator::MergeJoin => spawn_op!(MergeJoin, output, read_bufs, f, self.options),
-            Operator::Project => spawn_op!(Project, output, read_bufs, f, self.options),
-            Operator::Sort => spawn_op!(Sort, output, read_bufs, f, self.options)
+            //Operator::Filter => spawn_op!(Filter, output, read_bufs, f, self.options),
+            //Operator::LoopJoin => spawn_op!(LoopJoin, output, read_bufs, f, self.options),
+            //Operator::MergeJoin => spawn_op!(MergeJoin, output, read_bufs, f, self.options),
+            //Operator::Project => spawn_op!(Project, output, read_bufs, f, self.options),
+            //Operator::Sort => spawn_op!(Sort, output, read_bufs, f, self.options)
+            _ => unimplemented!()
         };
     }
 }

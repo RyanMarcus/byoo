@@ -29,7 +29,7 @@ impl Filter {
     }
 }
 
-impl ConstructableOperator for Filter {
+/*impl ConstructableOperator for Filter {
     fn from_buffers(output: Option<OperatorWriteBuffer>,
                     input: Vec<OperatorReadBuffer>,
                     file: Option<File>,
@@ -37,7 +37,7 @@ impl ConstructableOperator for Filter {
         let o = output.unwrap();
         let i = output.unwrap();
     }
-}
+}*/
 
 
 #[cfg(test)]
