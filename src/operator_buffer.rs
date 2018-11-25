@@ -38,6 +38,7 @@ macro_rules! iterate_buffer {
             }
             ($op_buf).progress();
         }
+        drop($op_buf);
     };
     ($op_buf:expr, $idx_var:ident, $row_var:ident, $loop_body: block) => {
         let mut count = 0;
@@ -55,6 +56,7 @@ macro_rules! iterate_buffer {
             }
             ($op_buf).progress();
         }
+        drop($op_buf);
     };
 }
 

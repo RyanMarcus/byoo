@@ -3,6 +3,7 @@ use std::io::{BufRead, Error, ErrorKind};
 use base64;
 use std::cmp::Ordering;
 use std::fmt;
+use std::hash::{Hash, Hasher};
 
 #[derive(Clone, Debug, Hash)]
 pub enum DataType {
@@ -217,9 +218,22 @@ impl PartialOrd for Data {
     }
 }
 
+impl Eq for Data { }
+
 impl fmt::Display for Data {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.as_string())
+    }
+}
+
+impl Hash for Data {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match self {
+            Data::Integer(me) => me.hash(state),
+            Data::Real(me) => self.clone().into_bytes().hash(state),
+            Data::Text(me) => me.hash(state),
+            Data::Blob(me) => me.hash(state)
+        };
     }
 }
 

@@ -115,6 +115,11 @@ impl WritableSpillableStore {
 
         return (&self.stats, r);
     }
+
+    pub fn into_read_buffer(mut self) -> (SpillableStoreStats, OperatorReadBuffer) {
+        let (_, r) = self.read();
+        return (self.stats, r);
+    }
 }
 
 impl ReadableSpillableStore {

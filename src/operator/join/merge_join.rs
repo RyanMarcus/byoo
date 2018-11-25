@@ -7,7 +7,6 @@ use predicate::Predicate;
 use std::fs::File;
 
 
-
 pub struct MergeJoin {
     left: OperatorReadBuffer,
     right: OperatorReadBuffer,

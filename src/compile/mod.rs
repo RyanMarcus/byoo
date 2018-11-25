@@ -5,14 +5,14 @@ use operator_buffer::{OperatorReadBuffer, OperatorWriteBuffer, make_buffer_pair}
 use operator::{ConstructableOperator, Filter, Project, Sort, ColumnUnion};
 use operator::output::{CsvOutput, ColumnarOutput};
 use operator::scan::{CsvScan, ColumnarScan};
-use operator::join::{LoopJoin, MergeJoin};
+use operator::join::{LoopJoin, MergeJoin, HashJoin};
 use std::fs::File;
 use std::fmt;
 use std::thread;
 use std::thread::JoinHandle;
 
 enum Operator {
-    Union, Project, Filter, LoopJoin, MergeJoin,
+    Union, Project, Filter, LoopJoin, MergeJoin, HashJoin,
     Sort, ColumnarRead, CSVRead, CSVOut, ColumnarOut
 }
 
@@ -24,6 +24,7 @@ impl Operator {
             "filter" => Operator::Filter,
             "loop join" => Operator::LoopJoin,
             "merge join" => Operator::MergeJoin,
+            "hash join" => Operator::HashJoin,
             "sort" => Operator::Sort,
             "columnar read" => Operator::ColumnarRead,
             "csv read" => Operator::CSVRead,
@@ -40,6 +41,7 @@ impl Operator {
             Operator::Filter => false, 
             Operator::LoopJoin => false, 
             Operator::MergeJoin => false,
+            Operator::HashJoin => false,
             Operator::Sort => false,
             Operator::ColumnarRead => true,
             Operator::CSVRead => true,
@@ -55,6 +57,7 @@ impl Operator {
             Operator::Filter => false, 
             Operator::LoopJoin => false, 
             Operator::MergeJoin => false,
+            Operator::HashJoin => false,
             Operator::Sort => false,
             Operator::ColumnarRead => false,
             Operator::CSVRead => false,
@@ -74,6 +77,7 @@ impl fmt::Display for Operator {
             Operator::Filter => write!(f, "filter"),
             Operator::LoopJoin => write!(f, "loop join"),
             Operator::MergeJoin => write!(f, "merge join"),
+            Operator::HashJoin => write!(f, "hash join"),
             Operator::Sort => write!(f, "sort"),
             Operator::ColumnarRead => write!(f, "columnar read"),
             Operator::CSVRead => write!(f, "csv read"),
@@ -116,7 +120,10 @@ fn get_operator_out_type(opcode: &Operator,
                          options: &serde_json::Value,
                          in_types: &[Vec<DataType>]) -> OutType {
     match opcode {
-        Operator::LoopJoin | Operator::MergeJoin | Operator::Union => {
+        Operator::LoopJoin
+            | Operator::MergeJoin
+            | Operator::HashJoin
+            | Operator::Union => {
             // flattens all the types
             return OutType::Known(
                 in_types.iter()
@@ -265,6 +272,7 @@ impl OperatorNode {
             Operator::Filter => spawn_op!(Filter, output, read_bufs, f, self.options),
             Operator::LoopJoin => spawn_op!(LoopJoin, output, read_bufs, f, self.options),
             Operator::MergeJoin => spawn_op!(MergeJoin, output, read_bufs, f, self.options),
+            Operator::HashJoin => spawn_op!(HashJoin, output, read_bufs, f, self.options),
             Operator::Project => spawn_op!(Project, output, read_bufs, f, self.options),
             Operator::Sort => spawn_op!(Sort, output, read_bufs, f, self.options),
             Operator::Union => spawn_op!(ColumnUnion, output, read_bufs, f, self.options)
@@ -286,6 +294,7 @@ fn inputs_per_op(op: &str) -> ChildCount {
         "filter" => ChildCount::Specific(1),
         "loop join" => ChildCount::Specific(2),
         "merge join" => ChildCount::Specific(2),
+        "hash join" => ChildCount::Specific(2),
         "sort" => ChildCount::Specific(1),
         "columnar read" => ChildCount::None,
         "csv read" => ChildCount::None,
