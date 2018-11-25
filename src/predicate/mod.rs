@@ -54,7 +54,7 @@ macro_rules! overflow_access {
         if ($data1).len() > $idx {
             &($data1)[$idx]
         } else {
-            &($data2)[$idx]
+            &($data2)[$idx - ($data1).len()]
         }
     }
 }
@@ -201,11 +201,11 @@ impl Predicate {
             },
 
             Predicate::EqCol(col_idx, col2_idx) => {
-                return overflow_access!(data, data2,
-                                        col_idx.clone())
-                    ==
-                    overflow_access!(data, data2,
-                                     col2_idx.clone());
+                let v1 = overflow_access!(data, data2,
+                                          col_idx.clone());
+                let v2 = overflow_access!(data, data2,
+                                          col2_idx.clone());
+                return v1 == v2;
             },
 
             Predicate::Contains(col_idx, string_val) => {

@@ -9,8 +9,8 @@ use std::fs::File;
 
 
 pub struct MergeJoin {
-    left: PeekableOperatorReadBuffer,
-    right: PeekableOperatorReadBuffer,
+    left: OperatorReadBuffer,
+    right: OperatorReadBuffer,
     out: OperatorWriteBuffer,
     left_cols: Vec<usize>,
     right_cols: Vec<usize>
@@ -53,8 +53,7 @@ impl MergeJoin {
                right_cols: Vec<usize>)
                -> MergeJoin {
         return MergeJoin {
-            left: PeekableOperatorReadBuffer::new(left),
-            right: PeekableOperatorReadBuffer::new(right),
+            left, right,
             out, left_cols, right_cols
         };
     }
@@ -72,6 +71,11 @@ impl MergeJoin {
         loop {
             if let Some(r) = buf.peek() {
                 if !matches_on_cols(&to_r[0], r, cols) {
+                    // make sure the input is sorted
+                    debug_assert_matches!(cmp_on_col_sets(
+                        &to_r[0], &r,
+                        cols, cols), Ordering::Less);
+
                     break;
                 }
             } else {
@@ -87,12 +91,15 @@ impl MergeJoin {
     }
     
     pub fn start(mut self) {
-        let mut left_set = match MergeJoin::read_matching(&mut self.left, &self.left_cols) {
+        let mut pleft = PeekableOperatorReadBuffer::new(self.left);
+        let mut pright = PeekableOperatorReadBuffer::new(self.right);
+        
+        let mut left_set = match MergeJoin::read_matching(&mut pleft, &self.left_cols) {
             Some(v) => v,
             None => { return; }
         };
         
-        let mut right_set = match MergeJoin::read_matching(&mut self.right, &self.right_cols) {
+        let mut right_set = match MergeJoin::read_matching(&mut pright, &self.right_cols) {
             Some(v) => v,
             None => { return; }
         };
@@ -112,12 +119,12 @@ impl MergeJoin {
                         }
                     }
                     // progress both the left and the right
-                    left_set = match MergeJoin::read_matching(&mut self.left, &self.left_cols) {
+                    left_set = match MergeJoin::read_matching(&mut pleft, &self.left_cols) {
                         Some(v) => v,
                         None => { return; }
                     };
                     
-                    right_set = match MergeJoin::read_matching(&mut self.right, &self.right_cols) {
+                    right_set = match MergeJoin::read_matching(&mut pright, &self.right_cols) {
                         Some(v) => v,
                         None => { return; }
                     };
@@ -125,7 +132,7 @@ impl MergeJoin {
 
                 Ordering::Greater => {
                     // progress the right
-                    right_set = match MergeJoin::read_matching(&mut self.right, &self.right_cols) {
+                    right_set = match MergeJoin::read_matching(&mut pright, &self.right_cols) {
                         Some(v) => v,
                         None => { return; }
                     };
@@ -133,7 +140,7 @@ impl MergeJoin {
 
                 Ordering::Less => {
                     // progress the left
-                    left_set = match MergeJoin::read_matching(&mut self.left, &self.left_cols) {
+                    left_set = match MergeJoin::read_matching(&mut pleft, &self.left_cols) {
                         Some(v) => v,
                         None => { return; }
                     };
@@ -155,6 +162,13 @@ impl ConstructableOperator for MergeJoin {
         assert_eq!(input.len(), 2);
         let lb = input.remove(0);
         let rb = input.remove(0);
+
+        assert!(options["left_cols"].is_array(),
+                "merge join operator missing left_cols array!");
+
+        assert!(options["right_cols"].is_array(),
+                "merge join operator missing right_cols array!");
+
 
         let left_cols = options["left_cols"].as_array().unwrap()
             .iter()

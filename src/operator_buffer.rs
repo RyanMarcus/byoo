@@ -217,6 +217,10 @@ impl OperatorWriteBuffer {
     }
 
     pub fn write_strings(&mut self, row: Vec<String>) {
+        assert_eq!(row.len(), self.types.len(),
+                   "Was expecting {} columns in operator but write_strings got {}",
+                   self.types.len(), row.len());
+        
         let data: Vec<Data> = row.into_iter().enumerate().map(|(idx, field)| {
             let dt = &self.types[idx];
             return dt.from_string(field);

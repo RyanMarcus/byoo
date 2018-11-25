@@ -23,6 +23,7 @@ mod compile;
 
 pub use compile::compile;
 pub use data::Data;
+pub use data::rows_to_string;
 
 #[cfg(test)]
 mod tests {

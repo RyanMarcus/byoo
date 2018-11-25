@@ -2,6 +2,7 @@ use byteorder::{ByteOrder, ReadBytesExt, LittleEndian};
 use std::io::{BufRead, Error, ErrorKind};
 use base64;
 use std::cmp::Ordering;
+use std::fmt;
 
 #[derive(Clone, Debug, Hash)]
 pub enum DataType {
@@ -153,6 +154,15 @@ impl Data {
             Data::Blob(b) => base64::encode(&b)
         }
     }
+
+    pub fn as_string(&self) -> String {
+        match self {
+            Data::Integer(i) => i.to_string(),
+            Data::Real(f) => f.to_string(),
+            Data::Text(t) => t.clone(),
+            Data::Blob(b) => base64::encode(&b)
+        }
+    }
 }
 
 impl PartialOrd for Data {
@@ -206,3 +216,30 @@ impl PartialOrd for Data {
         }
     }
 }
+
+impl fmt::Display for Data {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.as_string())
+    }
+}
+
+
+
+pub fn rows_to_string(rows: &[Vec<Data>], sort: bool) -> String {
+    let mut to_r = Vec::new();
+
+    for row in rows {
+        let mut buf = Vec::new();
+        for col in row.iter() {
+            buf.push(col.to_string() + " ");
+        }
+        to_r.push(buf.join(" "));
+    }
+    
+    if sort {
+        to_r.sort();
+    }
+
+    return to_r.join("\n");
+}
+
