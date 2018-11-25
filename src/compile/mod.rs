@@ -212,6 +212,18 @@ impl OperatorNode {
     pub fn start(self) -> JoinHandle<()> {
         return self.run(None);
     }
+
+    pub fn start_save(self) -> (OperatorReadBuffer, JoinHandle<()>) {
+        let (r, w) = match self.out_type {
+            OutType::None =>
+                panic!("Root operator has no output, but buffered output requested"),
+            OutType::Known(ref v) => make_buffer_pair(5, 4096, v.clone()),
+            OutType::Unknown => panic!("unknown output types in start_save")
+        };
+
+
+        return (r, self.run(Some(w)));
+    }
     
     fn run(self, output: Option<OperatorWriteBuffer>) -> JoinHandle<()> {
 

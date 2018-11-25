@@ -22,6 +22,7 @@ mod predicate;
 mod compile;
 
 pub use compile::compile;
+pub use data::Data;
 
 #[cfg(test)]
 mod tests {

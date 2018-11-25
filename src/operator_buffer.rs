@@ -23,41 +23,6 @@ pub struct PeekableOperatorReadBuffer {
     dq: VecDeque<Vec<Data>>
 }
 
-impl OperatorReadBuffer {
-    fn new(send: Sender<RowBuffer>, recv: Receiver<RowBuffer>, types: Vec<DataType>)
-           -> OperatorReadBuffer {        
-        return OperatorReadBuffer {
-            buffers: VecDeque::new(),
-            send,
-            recv,
-            types
-                
-        };
-    }
-
-    pub fn data(&mut self) -> Option<&mut RowBuffer> {
-        if self.buffers.is_empty() {
-            match self.recv.recv() {
-                Ok(r) => { self.buffers.push_back(r); }
-                Err(_) => { return None; }
-            };
-        }
-
-        return Some(self.buffers.front_mut().unwrap());
-    }
-
-    pub fn progress(&mut self) {
-        if let Some(mut buffer_to_return) = self.buffers.pop_front() {
-            buffer_to_return.clear();
-            self.send.send(buffer_to_return);
-        }
-    }
-
-    pub fn types(&self) -> &[DataType] {
-        return &self.types;
-    }
-}
-
 macro_rules! iterate_buffer {
     ($op_buf:expr, $row_var:ident, $loop_body: block) => {
         loop {
@@ -92,6 +57,52 @@ macro_rules! iterate_buffer {
         }
     };
 }
+
+
+impl OperatorReadBuffer {
+    fn new(send: Sender<RowBuffer>, recv: Receiver<RowBuffer>, types: Vec<DataType>)
+           -> OperatorReadBuffer {        
+        return OperatorReadBuffer {
+            buffers: VecDeque::new(),
+            send,
+            recv,
+            types
+                
+        };
+    }
+
+    pub fn data(&mut self) -> Option<&mut RowBuffer> {
+        if self.buffers.is_empty() {
+            match self.recv.recv() {
+                Ok(r) => { self.buffers.push_back(r); }
+                Err(_) => { return None; }
+            };
+        }
+
+        return Some(self.buffers.front_mut().unwrap());
+    }
+
+    pub fn progress(&mut self) {
+        if let Some(mut buffer_to_return) = self.buffers.pop_front() {
+            buffer_to_return.clear();
+            self.send.send(buffer_to_return);
+        }
+    }
+
+    pub fn types(&self) -> &[DataType] {
+        return &self.types;
+    }
+
+    pub fn to_vec(mut self) -> Vec<Vec<Data>> {
+        let mut to_r = Vec::new();
+        iterate_buffer!(self, row, {
+            to_r.push(row.to_vec());
+        });
+
+        return to_r;
+    }
+}
+
 
 impl PeekableOperatorReadBuffer {
     pub fn new(read_buf: OperatorReadBuffer) -> PeekableOperatorReadBuffer {
