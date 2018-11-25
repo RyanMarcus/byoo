@@ -136,6 +136,9 @@ impl ConstructableOperator for Sort {
 
         assert_eq!(input.len(), 1);
         let ib = input.remove(0);
+
+        assert!(options["cols"].is_array(),
+                "Sort operator requires cols array option");
         
         let cols = options["cols"].as_array().unwrap()
             .iter()

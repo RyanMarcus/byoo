@@ -1,0 +1,4 @@
+int1,str1
+8650,should appear twice
+-9672,should appear once
+9612,should not appear
