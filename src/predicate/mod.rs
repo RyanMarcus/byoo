@@ -11,6 +11,9 @@ pub enum Predicate {
     Lt(usize, Either<i64, f64>),
     Gt(usize, Either<i64, f64>),
     Eq(usize, Either<i64, f64>),
+    LtCol(usize, usize),
+    GtCol(usize, usize),
+    EqCol(usize, usize),
     Contains(usize, String)
 }
 
@@ -92,21 +95,44 @@ impl Predicate {
 
             "lt" => {
                 let col_idx = tree["col"].as_i64().unwrap() as usize;
-                let cmp_val = &tree["val"];
 
-                return Predicate::Lt(col_idx, either_from_json(cmp_val));
+                if let Some(v) = tree.get("val") {
+                    return Predicate::Lt(col_idx, either_from_json(v));
+                }
+
+                if let Some(v) = tree.get("col2").map(|v| v.as_i64()) {
+                    return Predicate::LtCol(col_idx, v.unwrap() as usize);
+                }
+
+                panic!("LT operator must have either a val or col2 attribute");
             },
 
             "gt" => {
                 let col_idx = tree["col"].as_i64().unwrap() as usize;
-                let cmp_val = &tree["val"];
-                return Predicate::Gt(col_idx, either_from_json(cmp_val));
+
+                if let Some(v) = tree.get("val") {
+                    return Predicate::Gt(col_idx, either_from_json(v));
+                }
+
+                if let Some(v) = tree.get("col2").map(|v| v.as_i64()) {
+                    return Predicate::GtCol(col_idx, v.unwrap() as usize);
+                }
+
+                panic!("GT operator must have either a val or col2 attribute");
             },
 
             "eq" => {
                 let col_idx = tree["col"].as_i64().unwrap() as usize;
-                let cmp_val = &tree["val"];
-                return Predicate::Eq(col_idx, either_from_json(cmp_val));
+
+                if let Some(v) = tree.get("val") {
+                    return Predicate::Eq(col_idx, either_from_json(v));
+                }
+
+                if let Some(v) = tree.get("col2").map(|v| v.as_i64()) {
+                    return Predicate::EqCol(col_idx, v.unwrap() as usize);
+                }
+
+                panic!("EQ operator must have either a val or col2 attribute");
             },
 
             "contains" => {
@@ -144,11 +170,27 @@ impl Predicate {
                                  , <);
             },
 
+            Predicate::LtCol(col_idx, col2_idx) => {
+                return overflow_access!(data, data2,
+                                        col_idx.clone())
+                    <
+                    overflow_access!(data, data2,
+                                     col2_idx.clone());
+            },
+            
             Predicate::Gt(col_idx, val) => {
                 return apply_op!(val,
                                  overflow_access!(data, data2,
                                                   col_idx.clone())
                                  , >);
+            },
+            
+            Predicate::GtCol(col_idx, col2_idx) => {
+                return overflow_access!(data, data2,
+                                        col_idx.clone())
+                    >
+                    overflow_access!(data, data2,
+                                     col2_idx.clone());
             },
 
             Predicate::Eq(col_idx, val) => {
@@ -156,6 +198,14 @@ impl Predicate {
                                  overflow_access!(data, data2,
                                                   col_idx.clone())
                                  , ==);
+            },
+
+            Predicate::EqCol(col_idx, col2_idx) => {
+                return overflow_access!(data, data2,
+                                        col_idx.clone())
+                    ==
+                    overflow_access!(data, data2,
+                                     col2_idx.clone());
             },
 
             Predicate::Contains(col_idx, string_val) => {
@@ -198,6 +248,23 @@ mod tests {
         assert!(p.eval(&r1));
         assert!(!p.eval(&r2));
         assert!(!p.eval(&r3));
+    }
+
+    #[test]
+    fn simple_test_cols() {
+        let v: serde_json::Value = serde_json::from_str(r#"
+{ "op": "eq", "col": 0, "col2": 1 }
+"#).unwrap();
+
+        let p = Predicate::from_json(&v);
+
+        let r1 = vec![Data::Integer(3), Data::Integer(5)];
+        let r2 = vec![Data::Integer(5), Data::Integer(6)];
+        let r3 = vec![Data::Integer(3), Data::Integer(3)];
+
+        assert!(!p.eval(&r1));
+        assert!(!p.eval(&r2));
+        assert!(p.eval(&r3));
     }
 
     #[test]
