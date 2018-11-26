@@ -19,6 +19,7 @@ mod spillable_store;
 mod operator;
 
 mod predicate;
+mod agg;
 mod compile;
 
 pub use compile::compile;
