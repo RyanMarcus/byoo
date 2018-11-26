@@ -8,3 +8,9 @@ trait Aggregate {
 
 mod min;
 pub use self::min::MinAggregate;
+
+mod max;
+pub use self::max::MaxAggregate;
+
+mod count;
+pub use self::count::CountAggregate;
