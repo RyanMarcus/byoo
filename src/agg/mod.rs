@@ -17,3 +17,6 @@ pub use self::count::CountAggregate;
 
 mod sum;
 pub use self::sum::SumAggregate;
+
+mod average;
+pub use self::average::AverageAggregate;
