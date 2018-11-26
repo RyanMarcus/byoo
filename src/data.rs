@@ -2,7 +2,7 @@ use byteorder::{ByteOrder, ReadBytesExt, LittleEndian};
 use std::io::{BufRead, Error, ErrorKind};
 use base64;
 use std::cmp::Ordering;
-use std::fmt;
+use std::{fmt, ops};
 use std::hash::{Hash, Hasher};
 
 #[derive(Clone, Debug, Hash)]
@@ -234,6 +234,30 @@ impl Hash for Data {
             Data::Text(me) => me.hash(state),
             Data::Blob(me) => me.hash(state)
         };
+    }
+}
+
+impl ops::Add<Data> for Data {
+    type Output = Data;
+
+    fn add(self, rhs: Data) -> Data {
+        match self {
+            Data::Integer(me) => {
+                if let Data::Integer(other) = rhs {
+                    return Data::Integer(me + other);
+                }
+            },
+
+            Data::Real(me) => {
+                if let Data::Real(other) = rhs {
+                    return Data::Real(me + other);
+                }
+            },
+
+            _ => {}
+        };
+
+        panic!("Incompatible data types for sum operator");
     }
 }
 

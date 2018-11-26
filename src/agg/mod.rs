@@ -14,3 +14,6 @@ pub use self::max::MaxAggregate;
 
 mod count;
 pub use self::count::CountAggregate;
+
+mod sum;
+pub use self::sum::SumAggregate;
