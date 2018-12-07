@@ -261,6 +261,51 @@ impl ops::Add<Data> for Data {
     }
 }
 
+impl ops::Sub<Data> for Data {
+    type Output = Data;
+
+    fn sub(self, rhs: Data) -> Data {
+        match self {
+            Data::Integer(me) => {
+                if let Data::Integer(other) = rhs {
+                    return Data::Integer(me - other);
+                }
+            },
+
+            Data::Real(me) => {
+                if let Data::Real(other) = rhs {
+                    return Data::Real(me - other);
+                }
+            },
+
+            _ => {}
+        };
+
+        panic!("Incompatible data types for sub operator");
+    }
+}
+
+impl ops::Div<usize> for Data {
+    type Output = Data;
+
+    fn div(self, rhs: usize) -> Data {
+        match self {
+            Data::Integer(me) => {
+                return Data::Real(me as f64 / rhs as f64);
+            },
+
+            Data::Real(me) => {
+                return Data::Real(me / rhs as f64);
+            },
+
+            _ => {}
+        };
+
+        panic!("Incompatible data types for div operator");
+    }
+}
+
+
 
 
 pub fn rows_to_string(rows: &[Vec<Data>], sort: bool) -> String {
