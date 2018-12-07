@@ -7,14 +7,16 @@ pub struct MaxAggregate {
     curr_max: Option<Data>
 }
 
-impl Aggregate for MaxAggregate {
-    fn new(rowIdx: usize) -> MaxAggregate {
+impl MaxAggregate {
+    pub fn new(rowIdx: usize) -> MaxAggregate {
         return MaxAggregate {
             rowIdx,
             curr_max: None
         };
     }
+}
 
+impl Aggregate for MaxAggregate {
     fn consume(&mut self, row: &[Data]) {
         let nxt = &row[self.rowIdx];
         let curr = self.curr_max.take();
@@ -37,7 +39,8 @@ impl Aggregate for MaxAggregate {
 
 #[cfg(test)]
 mod tests {
-    use agg::{Aggregate, MaxAggregate};
+    use agg::{Aggregate};
+    use agg::max::MaxAggregate;
     use data::Data;
     
     #[test]

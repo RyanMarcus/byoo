@@ -7,14 +7,16 @@ pub struct SumAggregate {
     curr_sum: Option<Data>
 }
 
-impl Aggregate for SumAggregate {
-    fn new(row_idx: usize) -> SumAggregate {
+impl SumAggregate {
+    pub fn new(row_idx: usize) -> SumAggregate {
         return SumAggregate {
             row_idx,
             curr_sum: None
         };
     }
+}
 
+impl Aggregate for SumAggregate {
     fn consume(&mut self, row: &[Data]) {
         let nxt = &row[self.row_idx];
         let curr = self.curr_sum.take();
@@ -31,8 +33,9 @@ impl Aggregate for SumAggregate {
 
 #[cfg(test)]
 mod tests {
-    use agg::{Aggregate, SumAggregate};
+    use agg::{Aggregate};
     use data::Data;
+    use agg::sum::SumAggregate;
     
     #[test]
     fn simple_test() {

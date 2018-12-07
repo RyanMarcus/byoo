@@ -7,14 +7,16 @@ pub struct MinAggregate {
     curr_min: Option<Data>
 }
 
-impl Aggregate for MinAggregate {
-    fn new(rowIdx: usize) -> MinAggregate {
+impl MinAggregate {
+    pub fn new(rowIdx: usize) -> MinAggregate {
         return MinAggregate {
             rowIdx,
             curr_min: None
         };
     }
+}
 
+impl Aggregate for MinAggregate {
     fn consume(&mut self, row: &[Data]) {
         let nxt = &row[self.rowIdx];
         let curr = self.curr_min.take();
@@ -37,7 +39,8 @@ impl Aggregate for MinAggregate {
 
 #[cfg(test)]
 mod tests {
-    use agg::{Aggregate, MinAggregate};
+    use agg::{Aggregate};
+    use agg::min::MinAggregate;
     use data::Data;
     
     #[test]

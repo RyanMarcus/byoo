@@ -8,15 +8,17 @@ pub struct AverageAggregate {
     curr_count: usize
 }
 
-impl Aggregate for AverageAggregate {
-    fn new(row_idx: usize) -> AverageAggregate {
+impl AverageAggregate {
+    pub fn new(row_idx: usize) -> AverageAggregate {
         return AverageAggregate {
             row_idx,
             curr_avg: None,
             curr_count: 0
         };
     }
+}
 
+impl Aggregate for AverageAggregate {
     fn consume(&mut self, row: &[Data]) {
         let nxt = &row[self.row_idx];
         let curr = self.curr_avg.take();
@@ -30,13 +32,14 @@ impl Aggregate for AverageAggregate {
 
     fn produce(&mut self) -> Data {
         self.curr_count = 0;
-        return self.curr_avg.take().unwrap();
+        return self.curr_avg.take().unwrap_or(Data::Real(0.0));
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use agg::{Aggregate, AverageAggregate};
+    use agg::{Aggregate};
+    use agg::average::AverageAggregate;
     use data::Data;
     
     #[test]

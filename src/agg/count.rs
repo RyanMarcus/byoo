@@ -6,13 +6,15 @@ pub struct CountAggregate {
     curr_count: usize
 }
 
-impl Aggregate for CountAggregate {
-    fn new(_rowIdx: usize) -> CountAggregate {
+impl CountAggregate {
+    pub fn new(_rowIdx: usize) -> CountAggregate {
         return CountAggregate {
             curr_count: 0
         };
     }
+}
 
+impl Aggregate for CountAggregate {
     fn consume(&mut self, row: &[Data]) {
         self.curr_count += 1;
     }
@@ -26,7 +28,8 @@ impl Aggregate for CountAggregate {
 
 #[cfg(test)]
 mod tests {
-    use agg::{Aggregate, CountAggregate};
+    use agg::{Aggregate};
+    use agg::count::CountAggregate;
     use data::Data;
     
     #[test]

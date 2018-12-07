@@ -7,7 +7,7 @@ mod project;
 
 pub mod output;
 pub mod join;
-
+pub mod groupby;
 
 pub use operator::filter::Filter;
 pub use operator::column_union::ColumnUnion;
