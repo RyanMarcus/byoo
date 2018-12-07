@@ -115,7 +115,7 @@ mod tests {
         assert_eq!(results[1], vec![Data::Integer(2), Data::Integer(-15), Data::Integer(1)]);
     }
 
-     #[test]
+    #[test]
     fn two_agg_test() {
         let (r, mut w) = make_buffer_pair(5, 10, vec![DataType::INTEGER, DataType::INTEGER]);
 
