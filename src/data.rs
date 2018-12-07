@@ -243,15 +243,19 @@ impl ops::Add<Data> for Data {
     fn add(self, rhs: Data) -> Data {
         match self {
             Data::Integer(me) => {
-                if let Data::Integer(other) = rhs {
-                    return Data::Integer(me + other);
-                }
+                match rhs {
+                    Data::Integer(other) => return Data::Integer(me + other),
+                    Data::Real(other) => return Data::Real(me as f64 + other),
+                    _ => {}
+                };
             },
 
             Data::Real(me) => {
-                if let Data::Real(other) = rhs {
-                    return Data::Real(me + other);
-                }
+                match rhs {
+                    Data::Integer(other) => return Data::Real(me + (other as f64)),
+                    Data::Real(other) => return Data::Real(me + other),
+                    _ => {}
+                };
             },
 
             _ => {}
@@ -265,23 +269,28 @@ impl ops::Sub<Data> for Data {
     type Output = Data;
 
     fn sub(self, rhs: Data) -> Data {
-        match self {
+         match self {
             Data::Integer(me) => {
-                if let Data::Integer(other) = rhs {
-                    return Data::Integer(me - other);
-                }
+                match rhs {
+                    Data::Integer(other) => return Data::Integer(me - other),
+                    Data::Real(other) => return Data::Real(me as f64 - other),
+                    _ => {}
+                };
             },
 
             Data::Real(me) => {
-                if let Data::Real(other) = rhs {
-                    return Data::Real(me - other);
-                }
+                match rhs {
+                    Data::Integer(other) => return Data::Real(me - (other as f64)),
+                    Data::Real(other) => return Data::Real(me - other),
+                    _ => {}
+                };
             },
 
             _ => {}
         };
 
-        panic!("Incompatible data types for sub operator");
+        panic!("Incompatible data types for sub operator, got: {:?} - {:?}",
+               self, rhs);
     }
 }
 
@@ -324,5 +333,30 @@ pub fn rows_to_string(rows: &[Vec<Data>], sort: bool) -> String {
     }
 
     return to_r.join("\n");
+}
+
+#[cfg(test)]
+mod tests {
+    use data::Data;
+
+    #[test]
+    fn add_data() {
+        assert_eq!(Data::Integer(5) + Data::Integer(-2), Data::Integer(3));
+        assert_eq!(Data::Real(5.0) + Data::Real(-2.0), Data::Real(3.0));
+        assert_eq!(Data::Integer(5) + Data::Real(-2.0), Data::Real(3.0));
+    }
+
+    #[test]
+    fn sub_data() {
+        assert_eq!(Data::Integer(5) - Data::Integer(-2), Data::Integer(7));
+        assert_eq!(Data::Integer(5) - Data::Real(-2.0), Data::Real(7.0));
+        assert_eq!(Data::Real(5.0) - Data::Real(-2.0), Data::Real(7.0));
+    }
+
+    #[test]
+    fn div_data() {
+        assert_eq!(Data::Integer(5) / 2, Data::Real(2.5));
+        assert_eq!(Data::Real(5.0) / 2, Data::Real(2.5));
+    }
 }
 

@@ -78,9 +78,9 @@ mod tests {
         let data = vec![
             vec![Data::Integer(500), Data::Integer(-100)],
             vec![Data::Integer(-200), Data::Integer(-100)],
-            vec![Data::Integer(10), Data::Integer(-100)],
+            vec![Data::Integer(12), Data::Integer(-100)],
             vec![Data::Integer(-10), Data::Integer(100)],
-            vec![Data::Integer(30), Data::Integer(-100)],
+            vec![Data::Integer(28), Data::Integer(-100)],
             vec![Data::Integer(-30), Data::Integer(-100)],
         ];
 
@@ -88,12 +88,12 @@ mod tests {
         avg_agg.consume(&data[0]);
         avg_agg.consume(&data[1]);
         avg_agg.consume(&data[2]);
-        assert_eq!(avg_agg.produce(), Data::Real(310.0 / 3.0));
+        assert_eq!(avg_agg.produce(), Data::Real(312.0 / 3.0));
 
         avg_agg.consume(&data[3]);
         avg_agg.consume(&data[4]);
         avg_agg.consume(&data[5]);
-        assert_eq!(avg_agg.produce(), Data::Real(-10.0 / 3.0));
+        assert_eq!(avg_agg.produce(), Data::Real(-12.0 / 3.0));
 
     }
 }
