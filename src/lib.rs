@@ -16,6 +16,7 @@ mod operator_buffer;
 
 mod row_buffer;
 mod spillable_store;
+mod hash_partition_store;
 mod operator;
 
 mod predicate;

@@ -83,6 +83,10 @@ impl WritableSpillableStore {
         return self.did_spill;
     }
 
+    pub fn stats(&self) -> &SpillableStoreStats {
+        return &self.stats;
+    }
+
     pub fn read(&mut self) -> (&SpillableStoreStats, OperatorReadBuffer) {
         self.writer.flush();
         
