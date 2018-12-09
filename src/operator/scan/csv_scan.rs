@@ -1,4 +1,3 @@
-use data::DataType;
 use std::io::{Read, BufReader};
 use std::fs::File;
 use csv::Reader;
@@ -38,7 +37,7 @@ impl ConstructableOperator for CsvScan<BufReader<File>> {
     fn from_buffers(output: Option<OperatorWriteBuffer>,
                     input: Vec<OperatorReadBuffer>,
                     file: Option<File>,
-                    options: serde_json::Value) -> Self {
+                    _options: serde_json::Value) -> Self {
         assert!(input.is_empty());
         let out = output.unwrap();
         let f = file.unwrap();

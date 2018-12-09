@@ -3,7 +3,6 @@ use operator::ConstructableOperator;
 use data::{Data};
 use std::cmp::Ordering;
 use serde_json;
-use predicate::Predicate;
 use std::fs::File;
 
 

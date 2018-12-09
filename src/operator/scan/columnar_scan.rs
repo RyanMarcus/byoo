@@ -1,7 +1,7 @@
 use operator_buffer::{OperatorWriteBuffer, OperatorReadBuffer};
 use operator::ConstructableOperator;
 use std::fs::File;
-use std::io::{Read, Seek, SeekFrom, BufRead, BufReader};
+use std::io::{Seek, SeekFrom, BufRead, BufReader};
 use byteorder::{ReadBytesExt, LittleEndian};
 use data::{DataType};
 use serde_json;

@@ -1,35 +1,11 @@
 use operator_buffer::{OperatorReadBuffer, OperatorWriteBuffer};
 use operator::ConstructableOperator;
 use data::{Data};
-use std::cmp::Ordering;
 use serde_json;
 use std::collections::HashMap;
 use spillable_store::WritableSpillableStore;
 use hash_partition_store::ReadableHashPartitionStore;
 use std::fs::File;
-
-
-enum PlainOrSpillable {
-    Spillable(WritableSpillableStore),
-    Plain(OperatorReadBuffer)
-}
-
-impl PlainOrSpillable {
-    fn read(&mut self) -> OperatorReadBuffer {
-        if let PlainOrSpillable::Spillable(v) = self {
-            return v.read().1;
-        }
-
-        panic!("Call to PlainOrSpillable::read when plain");
-    }
-
-    fn into_read(self) -> OperatorReadBuffer {
-        return match self {
-            PlainOrSpillable::Spillable(v) => v.into_read_buffer().1,
-            PlainOrSpillable::Plain(v) => v
-        };
-    }
-}
 
 
 const HASHTABLE_SIZE_LIMIT: usize = 4096;

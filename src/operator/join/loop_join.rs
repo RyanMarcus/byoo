@@ -15,6 +15,7 @@ pub struct LoopJoin {
 }
 
 impl LoopJoin {
+    #[cfg(test)]
     pub fn new(left: OperatorReadBuffer, right: OperatorReadBuffer,
            out: OperatorWriteBuffer, predicate: fn(&[Data], &[Data]) -> bool)
            -> LoopJoin {

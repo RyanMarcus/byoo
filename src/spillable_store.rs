@@ -1,7 +1,7 @@
 use data::{Data, DataType};
 use std::mem;
 use std::fs::File;
-use std::io::{Write, BufWriter, Read, BufReader, Seek, SeekFrom, ErrorKind};
+use std::io::{Write, BufWriter, BufReader, Seek, SeekFrom, ErrorKind};
 use operator_buffer::{OperatorReadBuffer, OperatorWriteBuffer, make_buffer_pair};
 use tempfile::tempfile;
 use std::thread;
@@ -73,22 +73,19 @@ impl WritableSpillableStore {
         mem::swap(&mut buf, &mut self.data);
         
         for d in buf {
-            self.writer.write(&d.into_bytes());
+            self.writer.write(&d.into_bytes()).unwrap();
         }
 
         self.data.extend_from_slice(row);
     }
 
+    #[cfg(test)]
     pub fn did_spill(&self) -> bool {
         return self.did_spill;
     }
 
-    pub fn stats(&self) -> &SpillableStoreStats {
-        return &self.stats;
-    }
-
     pub fn read(&mut self) -> (&SpillableStoreStats, OperatorReadBuffer) {
-        self.writer.flush();
+        self.writer.flush().unwrap();
         
         // Rust will let us make as many clones of an FD with .try_clone
         // as we want. As a result, multiple calls to read before one of the

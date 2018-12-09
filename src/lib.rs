@@ -23,7 +23,7 @@ mod predicate;
 mod agg;
 mod compile;
 
-pub use compile::compile;
+pub use compile::{compile, tree_to_gv};
 pub use data::Data;
 pub use data::rows_to_string;
 

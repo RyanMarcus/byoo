@@ -7,7 +7,7 @@ pub struct CountAggregate {
 }
 
 impl CountAggregate {
-    pub fn new(_rowIdx: usize) -> CountAggregate {
+    pub fn new(_row_idx: usize) -> CountAggregate {
         return CountAggregate {
             curr_count: 0
         };
@@ -15,7 +15,7 @@ impl CountAggregate {
 }
 
 impl Aggregate for CountAggregate {
-    fn consume(&mut self, row: &[Data]) {
+    fn consume(&mut self, _row: &[Data]) {
         self.curr_count += 1;
     }
 

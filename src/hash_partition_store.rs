@@ -1,13 +1,8 @@
-use data::{Data, DataType};
 use operator_buffer::OperatorReadBuffer;
 use spillable_store::WritableSpillableStore;
-use std::fs::File;
-use std::io::{Write, BufWriter, Read, BufReader, Seek, SeekFrom, ErrorKind};
-use tempfile::tempfile;
 use std::collections::vec_deque::VecDeque;
 use std::collections::hash_map::{HashMap, DefaultHasher};
 use std::hash::{Hash, Hasher};
-use std::cell::RefCell;
 use std::cmp;
 
 
@@ -50,17 +45,6 @@ impl HashTree {
 
     }
 
-    fn max_depth_from(&self, node: Node) -> usize {
-        if self.is_leaf(node) {
-            return 0;
-        }
-
-        let l_height = self.max_depth_from(self.left_child(node));
-        let r_height = self.max_depth_from(self.right_child(node));
-
-        return 1 + cmp::max(l_height, r_height);
-    }
-
     fn count_leaves_under(&self, node: Node) -> usize {
         if self.is_leaf(node) {
             return 1;
@@ -81,7 +65,6 @@ mod ht_test {
         let mut tree = HashTree::new();
         let root = tree.root();
         assert!(tree.is_leaf(root));
-        assert_eq!(tree.max_depth_from(root), 0);
         assert_eq!(tree.count_leaves_under(root), 1);
 
         tree.inc_size(root);
@@ -90,12 +73,10 @@ mod ht_test {
 
         tree.add_children(root, 5);
         assert_eq!(tree.size(tree.left_child(root)), 5);
-        assert_eq!(tree.max_depth_from(root), 1);
         assert_eq!(tree.count_leaves_under(root), 2);
 
         let lc = tree.left_child(root);
         tree.add_children(lc, 10);
-        assert_eq!(tree.max_depth_from(root), 2);
         assert_eq!(tree.count_leaves_under(root), 3);
     }
 }

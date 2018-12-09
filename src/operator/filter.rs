@@ -14,6 +14,7 @@ pub struct Filter {
 
 
 impl Filter {
+    #[cfg(test)]
     fn new(input: OperatorReadBuffer, output: OperatorWriteBuffer,
            predicate: fn(&[Data]) -> bool) -> Filter {
         return Filter {

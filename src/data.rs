@@ -230,7 +230,7 @@ impl Hash for Data {
     fn hash<H: Hasher>(&self, state: &mut H) {
         match self {
             Data::Integer(me) => me.hash(state),
-            Data::Real(me) => self.clone().into_bytes().hash(state),
+            Data::Real(_) => self.clone().into_bytes().hash(state),
             Data::Text(me) => me.hash(state),
             Data::Blob(me) => me.hash(state)
         };

@@ -3,14 +3,14 @@ use data::Data;
 use std::cmp::Ordering;
 
 pub struct MinAggregate {
-    rowIdx: usize,
+    row_idx: usize,
     curr_min: Option<Data>
 }
 
 impl MinAggregate {
-    pub fn new(rowIdx: usize) -> MinAggregate {
+    pub fn new(row_idx: usize) -> MinAggregate {
         return MinAggregate {
-            rowIdx,
+            row_idx,
             curr_min: None
         };
     }
@@ -18,7 +18,7 @@ impl MinAggregate {
 
 impl Aggregate for MinAggregate {
     fn consume(&mut self, row: &[Data]) {
-        let nxt = &row[self.rowIdx];
+        let nxt = &row[self.row_idx];
         let curr = self.curr_min.take();
         self.curr_min = match curr {
             None => Some(nxt.clone()),

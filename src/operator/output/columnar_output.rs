@@ -85,7 +85,7 @@ impl ConstructableOperator for ColumnarOutput<BufWriter<File>> {
     fn from_buffers(output: Option<OperatorWriteBuffer>,
                     input: Vec<OperatorReadBuffer>,
                     file: Option<File>,
-                    options: serde_json::Value) -> Self {
+                    _options: serde_json::Value) -> Self {
 
         assert!(output.is_none());
         let f = file.unwrap();

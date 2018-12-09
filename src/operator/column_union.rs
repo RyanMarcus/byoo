@@ -82,7 +82,7 @@ impl ConstructableOperator for ColumnUnion {
     fn from_buffers(output: Option<OperatorWriteBuffer>,
                     input: Vec<OperatorReadBuffer>,
                     file: Option<File>,
-                    options: serde_json::Value) -> Self {
+                    _options: serde_json::Value) -> Self {
         
         assert!(file.is_none());
         let o = output.unwrap();

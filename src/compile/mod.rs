@@ -375,7 +375,7 @@ fn label_for_node(node: &OperatorNode) -> String {
     return to_r;
 }
 
-fn tree_to_gv(root: &OperatorNode) -> String {
+pub fn tree_to_gv(root: &OperatorNode) -> String {
     let mut labels = String::new();
     let mut edges = String::new();
     let mut stack = VecDeque::new();

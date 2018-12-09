@@ -53,14 +53,7 @@ impl RowBuffer {
         debug_assert!(!self.is_full());
 
         for d in data {
-            match self.types[self.data.len() % self.types.len()] {
-                DataType::INTEGER => { debug_assert_matches!(d, Data::Integer(_)); },
-                DataType::REAL => { debug_assert_matches!(d, Data::Real(_)); },
-                DataType::TEXT => { debug_assert_matches!(d, Data::Text(_)); },
-                DataType::BLOB => { debug_assert_matches!(d, Data::Blob(_)); }
-            };
-
-            self.data.push(d);
+            self.write_value(d);
         }
     }
 

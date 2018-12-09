@@ -22,13 +22,13 @@ impl <T: Write> CsvOutput<T> {
         let mut csv = Writer::from_writer(self.output);
 
         if self.headers.len() != 0 {
-            csv.write_record(self.headers);
+            csv.write_record(self.headers).unwrap();
         }
         
         iterate_buffer!(self.input, row, {
             let row_strs: Vec<String> = row.into_iter().cloned()
                 .map(|d| d.into_string()).collect();
-            csv.write_record(row_strs);
+            csv.write_record(row_strs).unwrap();
         });
     }
 }
@@ -37,7 +37,7 @@ impl ConstructableOperator for CsvOutput<BufWriter<File>> {
     fn from_buffers(output: Option<OperatorWriteBuffer>,
                     input: Vec<OperatorReadBuffer>,
                     file: Option<File>,
-                    options: serde_json::Value) -> Self {
+                    _options: serde_json::Value) -> Self {
 
         assert!(output.is_none());
         let f = file.unwrap();

@@ -3,14 +3,14 @@ use data::Data;
 use std::cmp::Ordering;
 
 pub struct MaxAggregate {
-    rowIdx: usize,
+    row_idx: usize,
     curr_max: Option<Data>
 }
 
 impl MaxAggregate {
-    pub fn new(rowIdx: usize) -> MaxAggregate {
+    pub fn new(row_idx: usize) -> MaxAggregate {
         return MaxAggregate {
-            rowIdx,
+            row_idx,
             curr_max: None
         };
     }
@@ -18,7 +18,7 @@ impl MaxAggregate {
 
 impl Aggregate for MaxAggregate {
     fn consume(&mut self, row: &[Data]) {
-        let nxt = &row[self.rowIdx];
+        let nxt = &row[self.row_idx];
         let curr = self.curr_max.take();
         self.curr_max = match curr {
             None => Some(nxt.clone()),
