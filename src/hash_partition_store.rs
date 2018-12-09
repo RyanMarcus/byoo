@@ -107,7 +107,7 @@ pub struct ReadableHashPartitionStore {
 }
 
 impl ReadableHashPartitionStore {
-    fn new(max_size: usize, mut data: OperatorReadBuffer,
+    pub fn new(max_size: usize, mut data: OperatorReadBuffer,
            relv_cols: Vec<usize>) -> ReadableHashPartitionStore {
         let mut wss = WritableSpillableStore::new(max_size, data.types().to_vec());
 
@@ -163,7 +163,7 @@ impl ReadableHashPartitionStore {
             relv_cols);
     }
 
-    fn with_partitions(num_partitions: usize,
+    pub fn with_partitions(num_partitions: usize,
                        buf_size: usize,
                        mut data: OperatorReadBuffer, relv_cols: Vec<usize>)
                        -> ReadableHashPartitionStore {
@@ -196,8 +196,8 @@ impl ReadableHashPartitionStore {
                                             num_partitions };
     }
 
-    fn next_buf(&mut self) -> Option<OperatorReadBuffer> { self.data.pop_front() }
-    fn num_partitions(&self) -> usize { self.num_partitions }
+    pub fn next_buf(&mut self) -> Option<OperatorReadBuffer> { self.data.pop_front() }
+    pub fn num_partitions(&self) -> usize { self.num_partitions }
 }
 
 

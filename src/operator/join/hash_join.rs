@@ -5,7 +5,9 @@ use std::cmp::Ordering;
 use serde_json;
 use std::collections::HashMap;
 use spillable_store::WritableSpillableStore;
+use hash_partition_store::ReadableHashPartitionStore;
 use std::fs::File;
+
 
 enum PlainOrSpillable {
     Spillable(WritableSpillableStore),
@@ -32,8 +34,10 @@ impl PlainOrSpillable {
 
 const HASHTABLE_SIZE_LIMIT: usize = 4096;
 
+// TODO both of these Option<>'s can be removed with the
+// addition of substruct that handles the do_join
 pub struct HashJoin {
-    left: OperatorReadBuffer,
+    left: Option<OperatorReadBuffer>,
     right: Option<OperatorReadBuffer>,
     out: OperatorWriteBuffer,
     left_cols: Vec<usize>,
@@ -60,80 +64,75 @@ impl HashJoin {
         assert!(left_cols.len() == right_cols.len());
         
         return HashJoin {
-            left, right: Some(right),
+            left: Some(left), right: Some(right),
             out, left_cols, right_cols
         };
     }
 
-    fn emit_rows(mut buf: OperatorReadBuffer,
-                 ht: &HashMap<Vec<Data>, Vec<Vec<Data>>>,
-                 col_idxes: &[usize],
-                 out: &mut OperatorWriteBuffer) {
-        iterate_buffer!(buf, row, {
-            let key2 = extract_keys(row, col_idxes);
+ 
+    pub fn start(mut self) {
+        // first, see how many different hash partitions we need to split
+        // the left relation into
+        let left = self.left.take().unwrap();
+        let right = self.right.take().unwrap();
+
+        let mut left_hash_store = ReadableHashPartitionStore::new(
+            HASHTABLE_SIZE_LIMIT, left, self.left_cols.clone());
+
+        if left_hash_store.num_partitions() == 1 {
+            // the whole left-side dataset fits in memory. We only
+            // have to iterate over the right-side dataset once.
+            self.do_join(left_hash_store.next_buf().unwrap(), right);
+            return;
+        }
+
+        // otherwise, we have more than one partition on the left side.
+        // we'll need to split the right side into an equal number of partitions
+        let mut right_hash_store = ReadableHashPartitionStore::with_partitions(
+            left_hash_store.num_partitions(),
+            HASHTABLE_SIZE_LIMIT, right, self.right_cols.clone());
+
+        assert_eq!(left_hash_store.num_partitions(),
+                   right_hash_store.num_partitions());
+        
+        for _ in 0..left_hash_store.num_partitions() {
+            let mut sub_left = left_hash_store.next_buf().unwrap();
+            let mut sub_right = right_hash_store.next_buf().unwrap();
+            self.do_join(sub_left, sub_right);
+        }
+
+        assert!(left_hash_store.next_buf().is_none());
+        assert!(right_hash_store.next_buf().is_none());
+        
+    }
+
+    fn do_join(&mut self,
+               mut left: OperatorReadBuffer, mut right: OperatorReadBuffer) {
+        let mut ht: HashMap<Vec<Data>, Vec<Vec<Data>>> = HashMap::new();
+
+        // first, load the left side into a hash table.
+        iterate_buffer!(left, row, {
+            let key = extract_keys(row, &self.left_cols);
+            ht.entry(key)
+                .or_insert(Vec::new())
+                .push(row.to_vec());
+        });
+
+        iterate_buffer!(right, row, {
+            let key2 = extract_keys(row, &self.right_cols);
             if let Some(matches) = ht.get(&key2) {
                 // all these rows match.
                 for matching_row in matches.iter() {
                     let mut out_row = Vec::new();
                     out_row.extend_from_slice(matching_row);
                     out_row.extend_from_slice(row);
-                    out.write(out_row);
+                    self.out.write(out_row);
                 }
             }
         });
     }
 
- 
-    pub fn start(mut self) {
-        let mut ht: HashMap<Vec<Data>, Vec<Vec<Data>>> = HashMap::new();
-        let mut rows_added = 0;
-
-        let right_types = self.right.as_ref().unwrap().types().to_vec().clone();
-        let mut right_buffer = PlainOrSpillable::Plain(self.right.take().unwrap());
-
-        iterate_buffer!(self.left, row, {
-            // add rows to the hashtable ht until it is at capacity.
-            let key = extract_keys(row, &self.left_cols);
-            ht.entry(key)
-                .or_insert(Vec::new())
-                .push(row.to_vec());
-
-            rows_added += 1;
-
-            if rows_added >= HASHTABLE_SIZE_LIMIT {
-                // we have spilled! if this is the first time we've spilled,
-                // we need to write the entire right child into a buffer so
-                // we can iterate over it multiple times.
-                if let PlainOrSpillable::Plain(mut v) = right_buffer {
-                    // this is the first time we've spilled.
-                    let mut buf = WritableSpillableStore::new(
-                        4096, right_types.clone());
-
-                    iterate_buffer!(v, row2, {
-                        buf.push_row(row2);
-                    });
-
-                    right_buffer = PlainOrSpillable::Spillable(buf);
-                }
-
-                // check every row on the right
-                let mut buf = right_buffer.read();
-
-                // this cannot be a self method because we cannot borrow
-                // self as mutable more than once
-                HashJoin::emit_rows(buf, &ht, &self.right_cols,
-                                    &mut self.out);
-                
-                rows_added = 0;
-                ht.clear();
-            }
-        });
-         
-        HashJoin::emit_rows(right_buffer.into_read(), &ht,
-                            &self.right_cols,
-                            &mut self.out);
-    }
-}
+ }
 
 impl ConstructableOperator for HashJoin {
     fn from_buffers(output: Option<OperatorWriteBuffer>,
