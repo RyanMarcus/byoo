@@ -1,8 +1,9 @@
-use data::Data;
+use data::{Data, DataType};
 
 pub trait Aggregate {
     fn consume(&mut self, row: &[Data]);
     fn produce(&mut self) -> Data;
+    fn out_type(&self, in_type: &DataType) -> DataType;
 }
 
 mod min;
@@ -11,7 +12,7 @@ mod count;
 mod sum;
 mod average;
 
-pub fn new(agg_type: &str, row_idx: usize) -> Box<Aggregate> {
+pub fn new(agg_type: &str, row_idx: usize) -> Box<Aggregate + Send> {
     return match agg_type {
         "min" => Box::new(min::MinAggregate::new(row_idx)),
         "max" => Box::new(max::MaxAggregate::new(row_idx)),

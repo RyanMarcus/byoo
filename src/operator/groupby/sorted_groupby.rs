@@ -3,19 +3,20 @@ use operator::ConstructableOperator;
 use data::{Data};
 use serde_json;
 use std::fs::File;
+use agg;
 use agg::Aggregate;
 
 pub struct SortedGroupBy {
     child: OperatorReadBuffer,
     out: OperatorWriteBuffer,
     group_by_col_idx: usize,
-    aggs: Vec<Box<Aggregate>>
+    aggs: Vec<Box<Aggregate + Send>>
 }
 
 
 impl SortedGroupBy {
     fn new(child: OperatorReadBuffer, out: OperatorWriteBuffer,
-               group_by_col_idx: usize, aggs: Vec<Box<Aggregate>>)
+               group_by_col_idx: usize, aggs: Vec<Box<Aggregate + Send>>)
                -> SortedGroupBy {
         return SortedGroupBy {
             child, out,  
@@ -72,18 +73,26 @@ impl ConstructableOperator for SortedGroupBy {
         assert_eq!(input.len(), 1);
         let child = input.remove(0);
 
-        assert!(options["columnIndex"].is_i64(),
+        assert!(options["col"].is_i64(),
                 "sorted group by missing column index");
 
         assert!(options["aggregates"].is_array(),
                 "sorted group by missing aggregates");
 
-
-        let group_by_idx = options["columnIndex"].as_i64().unwrap()
+        let group_by_idx = options["col"].as_i64().unwrap()
             as usize;
+
+        let aggs: Vec<Box<Aggregate + Send>> = options["aggregates"]
+            .as_array().unwrap().iter()
+            .map(|ref agg| {
+                let op = agg["op"].as_str().unwrap();
+                let col_idx = agg["col"].as_i64().unwrap() as usize;
+                
+                return agg::new(op, col_idx);
+            }).collect();
         
         return SortedGroupBy::new(child, o,
-                                  group_by_idx, vec![]);
+                                  group_by_idx, aggs);
     }
 }
 

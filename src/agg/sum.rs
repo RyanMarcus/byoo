@@ -1,5 +1,5 @@
 use agg::Aggregate;
-use data::Data;
+use data::{DataType, Data};
 use std::cmp::Ordering;
 
 pub struct SumAggregate {
@@ -28,6 +28,10 @@ impl Aggregate for SumAggregate {
 
     fn produce(&mut self) -> Data {
         return self.curr_sum.take().unwrap();
+    }
+
+    fn out_type(&self, in_type: &DataType) -> DataType {
+        return in_type.clone();
     }
 }
 

@@ -1,5 +1,5 @@
 use agg::Aggregate;
-use data::Data;
+use data::{Data, DataType};
 use std::cmp::Ordering;
 
 pub struct CountAggregate {
@@ -23,6 +23,10 @@ impl Aggregate for CountAggregate {
         let to_r = self.curr_count;
         self.curr_count = 0;
         return Data::Integer(to_r as i64);
+    }
+
+    fn out_type(&self, _in_type: &DataType) -> DataType {
+        return DataType::INTEGER;
     }
 }
 

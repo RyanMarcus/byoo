@@ -1,5 +1,5 @@
 use agg::Aggregate;
-use data::Data;
+use data::{DataType, Data};
 use std::cmp::Ordering;
 
 pub struct AverageAggregate {
@@ -33,6 +33,10 @@ impl Aggregate for AverageAggregate {
     fn produce(&mut self) -> Data {
         self.curr_count = 0;
         return self.curr_avg.take().unwrap_or(Data::Real(0.0));
+    }
+
+    fn out_type(&self, _in_type: &DataType) -> DataType {
+        return DataType::REAL;
     }
 }
 

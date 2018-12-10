@@ -1,5 +1,5 @@
 use agg::Aggregate;
-use data::Data;
+use data::{Data, DataType};
 use std::cmp::Ordering;
 
 pub struct MinAggregate {
@@ -34,6 +34,10 @@ impl Aggregate for MinAggregate {
 
     fn produce(&mut self) -> Data {
         return self.curr_min.take().unwrap();
+    }
+
+    fn out_type(&self, in_type: &DataType) -> DataType {
+        return in_type.clone();
     }
 }
 

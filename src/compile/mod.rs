@@ -6,14 +6,18 @@ use operator::{ConstructableOperator, Filter, Project, Sort, ColumnUnion};
 use operator::output::{CsvOutput, ColumnarOutput};
 use operator::scan::{CsvScan, ColumnarScan};
 use operator::join::{LoopJoin, MergeJoin, HashJoin};
+use operator::groupby::{SortedGroupBy};
+use agg;
 use std::fs::File;
 use std::fmt;
 use std::thread;
 use std::thread::JoinHandle;
 
+
 enum Operator {
     Union, Project, Filter, LoopJoin, MergeJoin, HashJoin,
-    Sort, ColumnarRead, CSVRead, CSVOut, ColumnarOut
+    Sort, ColumnarRead, CSVRead, CSVOut, ColumnarOut,
+    SortedGroupBy
 }
 
 impl Operator {
@@ -30,39 +34,24 @@ impl Operator {
             "csv read" => Operator::CSVRead,
             "csv out" => Operator::CSVOut,
             "columnar out" => Operator::ColumnarOut,
+            "sorted group by" => Operator::SortedGroupBy,
             _ => panic!("invalid opcode")
         };
     }
 
     fn requires_input_file(&self) -> bool {
         match self {
-            Operator::Union => false,
-            Operator::Project => false, 
-            Operator::Filter => false, 
-            Operator::LoopJoin => false, 
-            Operator::MergeJoin => false,
-            Operator::HashJoin => false,
-            Operator::Sort => false,
             Operator::ColumnarRead => true,
             Operator::CSVRead => true,
-            Operator::CSVOut => false,
-            Operator::ColumnarOut => false
+            _ => false
         }
     }
 
     fn requires_output_file(&self) -> bool {
         match self {
-            Operator::Union => false,
-            Operator::Project => false, 
-            Operator::Filter => false, 
-            Operator::LoopJoin => false, 
-            Operator::MergeJoin => false,
-            Operator::HashJoin => false,
-            Operator::Sort => false,
-            Operator::ColumnarRead => false,
-            Operator::CSVRead => false,
             Operator::CSVOut => true,
-            Operator::ColumnarOut => true
+            Operator::ColumnarOut => true,
+            _ => false
         }
     }
 
@@ -82,11 +71,29 @@ impl fmt::Display for Operator {
             Operator::ColumnarRead => write!(f, "columnar read"),
             Operator::CSVRead => write!(f, "csv read"),
             Operator::CSVOut => write!(f, "csv out"),
-            Operator::ColumnarOut => write!(f, "columnar out")
+            Operator::ColumnarOut => write!(f, "columnar out"),
+            Operator::SortedGroupBy => write!(f, "sorted group by")
         }
     }
 }
 
+fn inputs_per_op(op: &str) -> ChildCount {
+    return match op {
+        "union" => ChildCount::Any,
+        "project" => ChildCount::Specific(1),
+        "filter" => ChildCount::Specific(1),
+        "loop join" => ChildCount::Specific(2),
+        "merge join" => ChildCount::Specific(2),
+        "hash join" => ChildCount::Specific(2),
+        "sort" => ChildCount::Specific(1),
+        "columnar read" => ChildCount::None,
+        "csv read" => ChildCount::None,
+        "csv out" => ChildCount::Specific(1),
+        "columnar out" => ChildCount::Specific(1),
+        "sorted group by" => ChildCount::Specific(1),
+        _ => panic!("unknown op code")
+    };
+}
 
 enum InType {
     Unknown,
@@ -149,7 +156,20 @@ fn get_operator_out_type(opcode: &Operator,
                     .map(|v| DataType::from_string_code(v.as_str().unwrap()))
                     .collect());
         },
-        Operator::ColumnarOut | Operator::CSVOut => return OutType::None
+        Operator::ColumnarOut | Operator::CSVOut => return OutType::None,
+        Operator::SortedGroupBy => {
+            let mut input_types = in_types[0].clone();
+
+            for agg_type in options["aggregates"].as_array().unwrap() {
+                let op = agg_type["op"].as_str().unwrap();
+                let col_idx = agg_type["col"].as_i64().unwrap() as usize;
+
+                let agg = agg::new(op, col_idx);
+                input_types.push(agg.out_type(&in_types[0][col_idx]));
+            }
+            
+            return OutType::Known(input_types);
+        }
     };
 }
 
@@ -275,7 +295,8 @@ impl OperatorNode {
             Operator::HashJoin => spawn_op!(HashJoin, output, read_bufs, f, self.options),
             Operator::Project => spawn_op!(Project, output, read_bufs, f, self.options),
             Operator::Sort => spawn_op!(Sort, output, read_bufs, f, self.options),
-            Operator::Union => spawn_op!(ColumnUnion, output, read_bufs, f, self.options)
+            Operator::Union => spawn_op!(ColumnUnion, output, read_bufs, f, self.options),
+            Operator::SortedGroupBy => spawn_op!(SortedGroupBy, output, read_bufs, f, self.options)
         };
 
         //  next, we have to start the children.
@@ -285,23 +306,6 @@ impl OperatorNode {
         
         return jh;
     }
-}
-
-fn inputs_per_op(op: &str) -> ChildCount {
-    return match op {
-        "union" => ChildCount::Any,
-        "project" => ChildCount::Specific(1),
-        "filter" => ChildCount::Specific(1),
-        "loop join" => ChildCount::Specific(2),
-        "merge join" => ChildCount::Specific(2),
-        "hash join" => ChildCount::Specific(2),
-        "sort" => ChildCount::Specific(1),
-        "columnar read" => ChildCount::None,
-        "csv read" => ChildCount::None,
-        "csv out" => ChildCount::Specific(1),
-        "columnar out" => ChildCount::Specific(1),
-        _ => panic!("unknown op code")
-    };
 }
 
 pub fn compile(json: String) -> OperatorNode {

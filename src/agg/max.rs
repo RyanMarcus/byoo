@@ -1,5 +1,5 @@
 use agg::Aggregate;
-use data::Data;
+use data::{DataType, Data};
 use std::cmp::Ordering;
 
 pub struct MaxAggregate {
@@ -34,6 +34,10 @@ impl Aggregate for MaxAggregate {
 
     fn produce(&mut self) -> Data {
         return self.curr_max.take().unwrap();
+    }
+
+    fn out_type(&self, in_type: &DataType) -> DataType {
+        return in_type.clone();
     }
 }
 
