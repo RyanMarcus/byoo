@@ -6,7 +6,6 @@ use data::{Data};
 use std::collections::HashMap;
 use serde_json;
 use std::fs::File;
-use agg;
 use agg::Aggregate;
 
 pub struct HashedGroupBy {
@@ -98,7 +97,6 @@ impl ConstructableOperator for HashedGroupBy {
 #[cfg(test)]
 mod tests {
     use operator::groupby::HashedGroupBy;
-    use agg;
     use operator_buffer::{make_buffer_pair};
     use data::{Data, DataType};
 

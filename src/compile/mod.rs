@@ -186,11 +186,11 @@ macro_rules! spawn_op {
 }
 
 impl OperatorNode {
-    fn new(id: usize, opcode: String,
+    fn new(id: usize, opcode: &str,
            options: serde_json::Value) -> OperatorNode {
 
         return OperatorNode {
-            opcode: Operator::from_opcode(opcode.as_str()),
+            opcode: Operator::from_opcode(opcode),
             options, id,
             in_types: InType::Unknown,
             out_type: OutType::Unknown,
@@ -315,16 +315,17 @@ impl OperatorNode {
 pub fn compile(json: String) -> OperatorNode {
     let parsed = serde_json::from_str(json.as_str())
         .unwrap();
+    drop(json);
 
-    return create_op_tree(parsed, 0).1;
+    return create_op_tree(&parsed, 0).1;
 }
 
-fn create_op_tree(root: serde_json::Value, nxt_id: usize)
+fn create_op_tree(root: &serde_json::Value, nxt_id: usize)
                   -> (usize, OperatorNode) {
     let opcode = root["op"].as_str().unwrap();
 
     let mut to_r = OperatorNode::new(nxt_id,
-                                     String::from(opcode),
+                                     opcode,
                                      root["options"].clone());
 
     // next, build all the children.
@@ -334,8 +335,8 @@ fn create_op_tree(root: serde_json::Value, nxt_id: usize)
     };
     
     match inputs_per_op(opcode) {
-        ChildCount::None => assert_eq!(children.len(), 0),
-        ChildCount::Any => assert!(children.len() > 0),
+        ChildCount::None => assert!(children.is_empty()),
+        ChildCount::Any => assert!(!children.is_empty()),
         ChildCount::Specific(i) => assert_eq!(
             children.len(), i,
             "opcode {} had {} inputs but should have had {}",
@@ -345,7 +346,7 @@ fn create_op_tree(root: serde_json::Value, nxt_id: usize)
 
     let mut num_added = 1;
     for v in children {
-        let (nc, c) = create_op_tree(v.clone(), nxt_id + num_added);
+        let (nc, c) = create_op_tree(&v, nxt_id + num_added);
         to_r.add_child(c);
         num_added += nc;
     }
@@ -436,7 +437,7 @@ mod tests {
 }
 ").unwrap();
 
-        let (count, root) = create_op_tree(json, 0);
+        let (count, root) = create_op_tree(&json, 0);
         assert_eq!(count, 3);
         
         let gv = tree_to_gv(&root);

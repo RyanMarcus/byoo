@@ -4,7 +4,6 @@ use operator::groupby;
 use data::{Data};
 use serde_json;
 use std::fs::File;
-use agg;
 use agg::Aggregate;
 
 pub struct SortedGroupBy {

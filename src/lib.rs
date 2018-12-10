@@ -1,3 +1,5 @@
+#![allow(clippy::needless_return)]
+
 #[macro_use]
 extern crate matches;
 extern crate byteorder;
@@ -7,8 +9,9 @@ extern crate base64;
 extern crate binary_heap_plus;
 extern crate rand;
 
-#[macro_use]
+#[cfg_attr(test, macro_use)] 
 extern crate serde_json;
+
 extern crate either;
 
 mod data;
