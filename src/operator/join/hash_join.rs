@@ -89,7 +89,7 @@ impl HashJoin {
         iterate_buffer!(left, row, {
             let key = extract_keys(row, &self.left_cols);
             ht.entry(key)
-                .or_insert(Vec::new())
+                .or_insert_with(Vec::new)
                 .push(row.to_vec());
         });
 

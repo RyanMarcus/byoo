@@ -21,7 +21,7 @@ impl <T: Write> CsvOutput<T> {
     pub fn start(mut self) {
         let mut csv = Writer::from_writer(self.output);
 
-        if self.headers.len() != 0 {
+        if !self.headers.is_empty() {
             csv.write_record(self.headers).unwrap();
         }
         

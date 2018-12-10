@@ -75,7 +75,7 @@ impl <T: Write> ColumnarOutput<T> {
             iterate_buffer!(col_reader, idx, data, {
                 debug_assert!(idx < num_rows);
                 let bytes = data[0].clone().into_bytes();
-                self.output.write(&bytes).unwrap();
+                self.output.write_all(&bytes).unwrap();
             });
         }
     }

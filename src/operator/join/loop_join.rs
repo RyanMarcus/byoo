@@ -7,11 +7,13 @@ use predicate::Predicate;
 use either::*;
 use std::fs::File;
 
+type PredicateOrFunc = Either<Predicate, fn(&[Data], &[Data]) -> bool>;
+
 pub struct LoopJoin {
     left: OperatorReadBuffer,
     right: OperatorReadBuffer,
     out: OperatorWriteBuffer,
-    predicate: Either<Predicate, fn(&[Data], &[Data]) -> bool>
+    predicate: PredicateOrFunc
 }
 
 impl LoopJoin {
