@@ -23,7 +23,7 @@ impl <T: Read> CsvScan<T> {
         for result in rdr.records() {
             let record = result.unwrap();
             let row: Vec<String> = record.iter()
-                .map(|s| String::from(s))
+                .map(String::from)
                 .collect();
 
             self.output.write_strings(row);

@@ -30,21 +30,28 @@ impl Sort {
                             sort_fn: F) -> WritableSpillableStore
     where F: Fn(&&[Data], &&[Data]) -> Ordering {
 
-        // sort the buffer
-        let mut by_rows: Vec<&[Data]> = buf.as_slice()
-            .chunks(types.len())
-            .collect();
+        // TODO at some point we should make push_row take ownership
+        // but for now, we will explicitly drop buf here
+        let to_r = {
+            // sort the buffer
+            let mut by_rows: Vec<&[Data]> = buf
+                .chunks(types.len())
+                .collect();
+            
+            by_rows.sort_unstable_by(sort_fn);
+            
+            let mut store = WritableSpillableStore::new(
+                1024, types.to_vec());
+            
+            for row in by_rows {
+                store.push_row(row);
+            }
+            store
+        };
+        drop(buf);
 
-        by_rows.sort_unstable_by(sort_fn);
 
-        let mut store = WritableSpillableStore::new(
-            1024, types.to_vec());
-
-        for row in by_rows {
-            store.push_row(row);
-        }
-
-        return store;
+        return to_r;
     }
     
     pub fn start(mut self) {
@@ -104,7 +111,7 @@ impl Sort {
             });
         
         for r in readers {
-            if let None = r.peek() {
+            if r.peek().is_none() {
                 continue;
             }
             bheap.push(r);
@@ -118,7 +125,7 @@ impl Sort {
             // back into the heap.
             self.output.write(next_row);
 
-            if let Some(_) = next_reader.peek() {
+            if next_reader.peek().is_some() {
                 bheap.push(next_reader);
             }
         }

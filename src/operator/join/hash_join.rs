@@ -65,7 +65,7 @@ impl HashJoin {
         // we'll need to split the right side into an equal number of partitions
         let mut right_hash_store = ReadableHashPartitionStore::with_partitions(
             left_hash_store.num_partitions(),
-            HASHTABLE_SIZE_LIMIT, right, self.right_cols.clone());
+            HASHTABLE_SIZE_LIMIT, right, &self.right_cols);
 
         assert_eq!(left_hash_store.num_partitions(),
                    right_hash_store.num_partitions());

@@ -141,12 +141,12 @@ impl ReadableHashPartitionStore {
             num_partitions,
             4096,
             wss.into_read_buffer().1,
-            relv_cols);
+            &relv_cols);
     }
 
     pub fn with_partitions(num_partitions: usize,
                        buf_size: usize,
-                       mut data: OperatorReadBuffer, relv_cols: Vec<usize>)
+                       mut data: OperatorReadBuffer, relv_cols: &[usize])
                        -> ReadableHashPartitionStore {
 
         let mut bufs = Vec::with_capacity(num_partitions);
