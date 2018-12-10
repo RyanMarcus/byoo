@@ -87,13 +87,10 @@ impl OperatorReadBuffer {
     pub fn progress(&mut self) {
         if let Some(mut buffer_to_return) = self.buffers.pop_front() {
             buffer_to_return.clear();
-            match self.send.send(buffer_to_return) {
-                // if there is an error, it must be a SendError,
-                // meaning that the sending operator has finished and
-                // doesn't want the buffer back.
-                Err(e) => { drop(e); },
-                Ok(_) => {}
-            };
+            // if there is an error, it must be a SendError,
+            // meaning that the sending operator has finished and
+            // doesn't want the buffer back.
+            if let Err(e) = self.send.send(buffer_to_return) { drop(e); }
         }
     }
 
@@ -169,10 +166,7 @@ impl OperatorWriteBuffer {
 
         
         return OperatorWriteBuffer {
-            buffers: buffers,
-            send: send,
-            recv: recv,
-            types: types
+            buffers, send, recv, types
         };
     }
 

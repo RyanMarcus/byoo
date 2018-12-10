@@ -39,8 +39,8 @@ impl WritableSpillableStore {
         let num_cols = types.len();
         return WritableSpillableStore {
             data: Vec::with_capacity(max_size / 4),
-            types: types,
-            max_size: max_size,
+            types,
+            max_size,
             backing_file: f,
             writer: w,
             did_spill: false,

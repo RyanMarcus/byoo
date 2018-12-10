@@ -10,7 +10,7 @@ impl RowBuffer {
     pub fn new(types: Vec<DataType>, row_capacity: usize) -> RowBuffer {
         let capacity = types.len() * row_capacity;
         return RowBuffer {
-            types: types,
+            types,
             data: Vec::with_capacity(capacity),
             max_rows: row_capacity
         }
@@ -71,7 +71,7 @@ pub struct RowBufferIterator<'a> {
 impl <'a> RowBufferIterator<'a> {
     fn new(rb: &RowBuffer) -> RowBufferIterator {
         return RowBufferIterator {
-            rb: rb,
+            rb,
             curr_row: 0
         }
     }

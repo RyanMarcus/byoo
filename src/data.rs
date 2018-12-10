@@ -13,7 +13,7 @@ pub enum DataType {
     BLOB
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, Clone)]
 pub enum Data {
     Integer(i64),
     Real(f64),
@@ -53,22 +53,22 @@ impl DataType {
     }
     
     pub fn read_item<T: BufRead>(&self, reader: &mut T) -> Result<Data, Error> {
-        match self {
-            &DataType::INTEGER => {
+        match *self {
+            DataType::INTEGER => {
                 return reader.read_i64::<LittleEndian>()
-                    .map(|d| Data::Integer(d));
+                    .map(Data::Integer);
             },
-            &DataType::REAL => {
+            DataType::REAL => {
                 return reader.read_f64::<LittleEndian>()
-                    .map(|d| Data::Real(d));
+                    .map(Data::Real);
             },
-            &DataType::TEXT => {
+            DataType::TEXT => {
                 let mut str_buf = Vec::new();
                 if let Err(e) = reader.read_until(0, &mut str_buf) {
                     return Err(e);
                 }
 
-                if str_buf.len() == 0 {
+                if str_buf.is_empty() {
                     // it was empty, we hit an EOF.
                     return Err(Error::new(
                         ErrorKind::UnexpectedEof, "Could not read string"));
@@ -79,7 +79,7 @@ impl DataType {
 
                 return Ok(Data::Text(String::from_utf8(str_buf).unwrap()));
             },
-            &DataType::BLOB => {
+            DataType::BLOB => {
                 let blob_length = reader.read_u64::<LittleEndian>()? as usize;
                     
                 let mut data = Vec::with_capacity(blob_length);
@@ -96,11 +96,11 @@ impl DataType {
     }
 
     pub fn from_string(&self, data: String) -> Data {
-        return match self {
-            &DataType::INTEGER => Data::Integer(data.parse::<i64>().unwrap()),
-            &DataType::REAL => Data::Real(data.parse::<f64>().unwrap()),
-            &DataType::TEXT => Data::Text(data),
-            &DataType::BLOB => Data::Blob(data.into_bytes())
+        return match *self {
+            DataType::INTEGER => Data::Integer(data.parse::<i64>().unwrap()),
+            DataType::REAL => Data::Real(data.parse::<f64>().unwrap()),
+            DataType::TEXT => Data::Text(data),
+            DataType::BLOB => Data::Blob(data.into_bytes())
         }
     }
 }
@@ -229,6 +229,16 @@ impl PartialOrd for Data {
                 }
             }
         }
+    }
+}
+
+impl PartialEq<Data> for Data {
+    fn eq(&self, other: &Data) -> bool {
+        let partial_cmp = self.partial_cmp(other);
+
+        if partial_cmp.is_none() { return false; }
+        if let Ordering::Equal = partial_cmp.unwrap() { return true; }
+        return false;
     }
 }
 
