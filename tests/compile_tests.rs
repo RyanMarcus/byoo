@@ -30,7 +30,7 @@ mod tests {
         let root = byoo::compile(json);
         let (read_buf, _) = root.start_save();
 
-        let data_vec = read_buf.to_vec();
+        let data_vec = read_buf.into_vec();
 
         assert_eq!(data_vec.len(), 1000);
 

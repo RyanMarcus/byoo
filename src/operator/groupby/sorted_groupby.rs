@@ -112,7 +112,7 @@ mod tests {
         let gb = SortedGroupBy::new(r, w2, 0, vec![agg::new("count", 1)]);
         gb.start();
 
-        let results = r2.to_vec();
+        let results = r2.into_vec();
         assert_eq!(results[0], vec![Data::Integer(1), Data::Integer(1), Data::Integer(2)]);
         assert_eq!(results[1], vec![Data::Integer(2), Data::Integer(-15), Data::Integer(1)]);
     }
@@ -134,7 +134,7 @@ mod tests {
                                                    agg::new("sum", 1)]);
         gb.start();
 
-        let results = r2.to_vec();
+        let results = r2.into_vec();
         assert_eq!(results[0], vec![Data::Integer(1), Data::Integer(1),
                                     Data::Integer(2), Data::Integer(11)]);
         assert_eq!(results[1], vec![Data::Integer(2), Data::Integer(-15),

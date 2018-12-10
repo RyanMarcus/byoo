@@ -101,7 +101,7 @@ impl OperatorReadBuffer {
         return &self.types;
     }
 
-    pub fn to_vec(mut self) -> Vec<Vec<Data>> {
+    pub fn into_vec(mut self) -> Vec<Vec<Data>> {
         let mut to_r = Vec::new();
         iterate_buffer!(self, row, {
             to_r.push(row.to_vec());
@@ -222,6 +222,7 @@ impl OperatorWriteBuffer {
         for row in rows.chunks(self.types.len()) {
             self.write(row.to_vec());
         }
+        drop(rows);
     }
 
     pub fn write_strings(&mut self, row: Vec<String>) {

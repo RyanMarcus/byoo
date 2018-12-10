@@ -44,7 +44,7 @@ fn sorted_group_by_plan() -> Vec<Vec<Data>> {
     let root = byoo::compile(json);
     let (read_buf, _) = root.start_save();
 
-    let data_vec = read_buf.to_vec();
+    let data_vec = read_buf.into_vec();
     return data_vec;
 }
 
@@ -80,7 +80,7 @@ fn hashed_group_by_plan() -> Vec<Vec<Data>> {
     let root = byoo::compile(json);
     let (read_buf, _) = root.start_save();
 
-    let data_vec = read_buf.to_vec();
+    let data_vec = read_buf.into_vec();
     return data_vec;
 }
 

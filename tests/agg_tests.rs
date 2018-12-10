@@ -47,7 +47,7 @@ mod tests {
         let root = byoo::compile(json);
         let (read_buf, _) = root.start_save();
 
-        let data_vec = read_buf.to_vec();
+        let data_vec = read_buf.into_vec();
         assert_eq!(data_vec.len(), 5);
         assert_eq!(data_vec[0].len(), 4);
             
@@ -97,7 +97,7 @@ mod tests {
         let root = byoo::compile(json);
         let (read_buf, _) = root.start_save();
 
-        let mut data_vec = read_buf.to_vec();
+        let mut data_vec = read_buf.into_vec();
         data_vec.sort_by(|a, b| a[0].as_i64().cmp(&b[0].as_i64()));
         
         assert_eq!(data_vec.len(), 5);
@@ -156,7 +156,7 @@ mod tests {
         let root = byoo::compile(json);
         let (read_buf, _) = root.start_save();
 
-        let data_vec = read_buf.to_vec();
+        let data_vec = read_buf.into_vec();
         assert_eq!(data_vec.len(), 5);
         assert_eq!(data_vec[0].len(), 4);
             
@@ -200,7 +200,7 @@ mod tests {
         let root = byoo::compile(json);
         let (read_buf, _) = root.start_save();
 
-        let mut data_vec = read_buf.to_vec();
+        let mut data_vec = read_buf.into_vec();
         data_vec.sort_by(|a, b| a[0].as_i64().cmp(&b[0].as_i64()));
         
         assert_eq!(data_vec.len(), 5);

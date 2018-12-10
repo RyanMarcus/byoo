@@ -117,7 +117,7 @@ mod tests {
         let gb = HashedGroupBy::new(r, w2, 0, aggs["aggregates"].clone());
         gb.start();
 
-        let mut results = r2.to_vec();
+        let mut results = r2.into_vec();
         results.sort_by(|a, b| a[0].as_i64().cmp(&b[0].as_i64()));
         
         assert_eq!(results[0], vec![Data::Integer(1), Data::Integer(1), Data::Integer(2)]);
@@ -142,7 +142,7 @@ mod tests {
         let gb = HashedGroupBy::new(r, w2, 0, aggs["aggregates"].clone());
         gb.start();
 
-        let mut results = r2.to_vec();
+        let mut results = r2.into_vec();
         results.sort_by(|a, b| a[0].as_i64().cmp(&b[0].as_i64()));
 
         assert_eq!(results[0], vec![Data::Integer(1), Data::Integer(1),
