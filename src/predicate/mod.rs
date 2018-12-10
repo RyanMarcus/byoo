@@ -166,50 +166,50 @@ impl Predicate {
             Predicate::Lt(col_idx, val) => {
                 return apply_op!(val,
                                  overflow_access!(data, data2,
-                                                  col_idx.clone())
+                                                  *col_idx)
                                  , <);
             },
 
             Predicate::LtCol(col_idx, col2_idx) => {
                 return overflow_access!(data, data2,
-                                        col_idx.clone())
+                                        *col_idx)
                     <
                     overflow_access!(data, data2,
-                                     col2_idx.clone());
+                                     *col2_idx);
             },
             
             Predicate::Gt(col_idx, val) => {
                 return apply_op!(val,
                                  overflow_access!(data, data2,
-                                                  col_idx.clone())
+                                                  *col_idx)
                                  , >);
             },
             
             Predicate::GtCol(col_idx, col2_idx) => {
                 return overflow_access!(data, data2,
-                                        col_idx.clone())
+                                        *col_idx)
                     >
                     overflow_access!(data, data2,
-                                     col2_idx.clone());
+                                     *col2_idx);
             },
 
             Predicate::Eq(col_idx, val) => {
                 return apply_op!(val,
                                  overflow_access!(data, data2,
-                                                  col_idx.clone())
+                                                  *col_idx)
                                  , ==);
             },
 
             Predicate::EqCol(col_idx, col2_idx) => {
                 let v1 = overflow_access!(data, data2,
-                                          col_idx.clone());
+                                          *col_idx);
                 let v2 = overflow_access!(data, data2,
-                                          col2_idx.clone());
+                                          *col2_idx);
                 return v1 == v2;
             },
 
             Predicate::Contains(col_idx, string_val) => {
-                let d = overflow_access!(data, data2, col_idx.clone());
+                let d = overflow_access!(data, data2, *col_idx);
                 if let Data::Text(ref s) = d {
                     return s.contains(string_val);
                 }

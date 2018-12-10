@@ -23,7 +23,7 @@ impl Aggregate for AverageAggregate {
         let curr = self.curr_avg.take();
         self.curr_count += 1;
         self.curr_avg = match curr {
-            None => Some(nxt.clone() / 1),
+            None => Some(nxt.clone()),
             Some(ref d) => Some(d.clone() + (nxt.clone() - d.clone())
                                 / self.curr_count)
         };
