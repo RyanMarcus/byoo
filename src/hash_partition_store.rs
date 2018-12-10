@@ -89,7 +89,7 @@ pub struct ReadableHashPartitionStore {
 
 impl ReadableHashPartitionStore {
     pub fn new(max_size: usize, mut data: OperatorReadBuffer,
-           relv_cols: Vec<usize>) -> ReadableHashPartitionStore {
+           relv_cols: &[usize]) -> ReadableHashPartitionStore {
         let mut wss = WritableSpillableStore::new(max_size, data.types().to_vec());
 
         let mut tree = HashTree::new();
@@ -98,7 +98,7 @@ impl ReadableHashPartitionStore {
             wss.push_row(row);
 
             let mut hasher = DefaultHasher::new();
-            for &col_idx in relv_cols.iter() {
+            for &col_idx in relv_cols {
                 row[col_idx].hash(&mut hasher);
             }
             
@@ -141,7 +141,7 @@ impl ReadableHashPartitionStore {
             num_partitions,
             4096,
             wss.into_read_buffer().1,
-            &relv_cols);
+            relv_cols);
     }
 
     pub fn with_partitions(num_partitions: usize,
