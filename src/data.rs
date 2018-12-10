@@ -107,6 +107,20 @@ impl DataType {
 
 impl Data {
 
+    pub fn as_f64(&self) -> f64 {
+        return match &self {
+            Data::Real(d) => *d,
+            _ => panic!("as_f64() on non-real data item")
+        };
+    }
+
+    pub fn as_i64(&self) -> i64 {
+        return match &self {
+            Data::Integer(d) => *d,
+            _ => panic!("as_i64() on non-integer data item")
+        };
+    }
+
     pub fn num_bytes(&self) -> usize {
         return match &self {
             Data::Integer(_) => 8,
