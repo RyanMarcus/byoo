@@ -52,7 +52,7 @@ impl HashJoin {
         let right = self.right.take().unwrap();
 
         let mut left_hash_store = ReadableHashPartitionStore::new(
-            HASHTABLE_SIZE_LIMIT, left, self.left_cols.clone());
+            HASHTABLE_SIZE_LIMIT, left, &self.left_cols);
 
         if left_hash_store.num_partitions() == 1 {
             // the whole left-side dataset fits in memory. We only

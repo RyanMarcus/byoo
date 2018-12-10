@@ -202,7 +202,7 @@ mod test {
         }
 
         let mut rhps = ReadableHashPartitionStore::new(
-            100, wss.into_read_buffer().1, vec![0]);
+            100, wss.into_read_buffer().1, &vec![0]);
 
         // 100 is too small a size, so we should hit the cap of 32
         // partitions. 

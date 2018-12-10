@@ -28,7 +28,7 @@ impl HashedGroupBy {
 
     pub fn start(mut self) {
         let mut rhps = ReadableHashPartitionStore::new(
-            4096, self.child, vec![self.group_by_col_idx]);
+            4096, self.child, &vec![self.group_by_col_idx]);
 
         let aggs_config = self.aggs.take();
         
