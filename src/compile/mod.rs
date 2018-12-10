@@ -1,4 +1,4 @@
-use data::{Data, DataType};
+use data::{DataType};
 use serde_json;
 use std::collections::{VecDeque};
 use operator_buffer::{OperatorReadBuffer, OperatorWriteBuffer, make_buffer_pair};

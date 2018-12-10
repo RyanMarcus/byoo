@@ -1,6 +1,5 @@
 use agg::Aggregate;
 use data::{DataType, Data};
-use std::cmp::Ordering;
 
 pub struct SumAggregate {
     row_idx: usize,

@@ -3,7 +3,6 @@ use operator::ConstructableOperator;
 use data::{Data};
 use serde_json;
 use std::collections::HashMap;
-use spillable_store::WritableSpillableStore;
 use hash_partition_store::ReadableHashPartitionStore;
 use std::fs::File;
 

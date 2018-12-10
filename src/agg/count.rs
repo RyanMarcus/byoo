@@ -1,6 +1,5 @@
 use agg::Aggregate;
 use data::{Data, DataType};
-use std::cmp::Ordering;
 
 pub struct CountAggregate {
     curr_count: usize
