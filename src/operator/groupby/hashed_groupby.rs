@@ -1,68 +1,75 @@
 use operator_buffer::{OperatorReadBuffer, OperatorWriteBuffer};
 use operator::ConstructableOperator;
 use operator::groupby;
+use hash_partition_store::ReadableHashPartitionStore;
 use data::{Data};
+use std::collections::HashMap;
 use serde_json;
 use std::fs::File;
 use agg;
 use agg::Aggregate;
 
-pub struct SortedGroupBy {
+pub struct HashedGroupBy {
     child: OperatorReadBuffer,
     out: OperatorWriteBuffer,
     group_by_col_idx: usize,
-    aggs: Vec<Box<Aggregate + Send>>
+    aggs: serde_json::Value
 }
 
 
-impl SortedGroupBy {
+impl HashedGroupBy {
     fn new(child: OperatorReadBuffer, out: OperatorWriteBuffer,
-               group_by_col_idx: usize, aggs: Vec<Box<Aggregate + Send>>)
-               -> SortedGroupBy {
-        return SortedGroupBy {
+           group_by_col_idx: usize, aggs: serde_json::Value)
+               -> HashedGroupBy {
+        return HashedGroupBy {
             child, out,  
             group_by_col_idx, aggs
         };
     }
-    
+
     pub fn start(mut self) {
-        let mut last: Option<Vec<Data>> = None;
-        iterate_buffer!(self.child, row, {
-            let curr = &row[self.group_by_col_idx];
-            last = match last.take() {
-                None => Some(row.to_vec()),
-                Some(mut last_row) => {
-                    if &last_row[self.group_by_col_idx] != curr {
-                        // we have a new value! we need to emit a result.
-                        for agg in self.aggs.iter_mut() {
-                            last_row.push(agg.produce());
-                        }
+        let mut rhps = ReadableHashPartitionStore::new(
+            4096, self.child, vec![self.group_by_col_idx]);
 
-                        self.out.write(last_row);
-                        Some(row.to_vec())
-                    } else {
-                        Some(last_row)
-                    }
+        let aggs_config = self.aggs.take();
+        
+        loop {
+            let nxt_buf = rhps.next_buf();
+            if nxt_buf.is_none() {
+                return;
+            }
+
+            // do the aggregation with a hashmap
+            let mut m: HashMap<Data, (Vec<Data>, Vec<Box<Aggregate + Send>>)> = HashMap::new();
+
+            let mut buf = nxt_buf.unwrap();
+            iterate_buffer!(buf, row, {
+                let aggs_for_key = m.entry(row[self.group_by_col_idx].clone())
+                    .or_insert_with(|| {
+                        return (row.to_vec(),
+                                groupby::json_to_aggs(&aggs_config));
+                    });
+
+                for agg in aggs_for_key.1.iter_mut() {
+                    agg.consume(row);
                 }
-            };
+            });
 
-            for agg in self.aggs.iter_mut() {
-                agg.consume(row);
+            // dump all the results from the hashmap
+            for (_, (mut witness, mut aggs)) in m.into_iter() {
+                witness.extend(
+                    aggs.into_iter()
+                        .map(|mut agg| agg.produce()));
+                self.out.write(witness);
             }
-        });
-
-        // unless we were empty, emit the last row
-        if let Some(mut last_row) = last {
-            for agg in self.aggs.iter_mut() {
-                last_row.push(agg.produce());
-            }
-            self.out.write(last_row);
+            
         }
+        
             
     }
 }
 
-impl ConstructableOperator for SortedGroupBy {
+impl ConstructableOperator for HashedGroupBy {
     fn from_buffers(output: Option<OperatorWriteBuffer>,
                     mut input: Vec<OperatorReadBuffer>,
                     file: Option<File>,
@@ -82,17 +89,15 @@ impl ConstructableOperator for SortedGroupBy {
 
         let group_by_idx = options["col"].as_i64().unwrap()
             as usize;
-
-        let aggs = groupby::json_to_aggs(&options["aggregates"]);
         
-        return SortedGroupBy::new(child, o,
-                                  group_by_idx, aggs);
+        return HashedGroupBy::new(child, o,
+                                  group_by_idx, options["aggregates"].clone());
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use operator::groupby::SortedGroupBy;
+    use operator::groupby::HashedGroupBy;
     use agg;
     use operator_buffer::{make_buffer_pair};
     use data::{Data, DataType};
@@ -109,11 +114,14 @@ mod tests {
 
         let (r2, w2) = make_buffer_pair(5, 10, vec![DataType::INTEGER, DataType::INTEGER,
                                                         DataType::INTEGER]);
-        
-        let gb = SortedGroupBy::new(r, w2, 0, vec![agg::new("count", 1)]);
+
+        let aggs = json!({ "aggregates": [{"op": "count", "col": 1}] });
+        let gb = HashedGroupBy::new(r, w2, 0, aggs["aggregates"].clone());
         gb.start();
 
-        let results = r2.to_vec();
+        let mut results = r2.to_vec();
+        results.sort_by(|a, b| a[0].as_i64().cmp(&b[0].as_i64()));
+        
         assert_eq!(results[0], vec![Data::Integer(1), Data::Integer(1), Data::Integer(2)]);
         assert_eq!(results[1], vec![Data::Integer(2), Data::Integer(-15), Data::Integer(1)]);
     }
@@ -130,12 +138,15 @@ mod tests {
 
         let (r2, w2) = make_buffer_pair(5, 10, vec![DataType::INTEGER, DataType::INTEGER,
                                                         DataType::INTEGER, DataType::INTEGER]);
-        
-        let gb = SortedGroupBy::new(r, w2, 0, vec![agg::new("count", 1),
-                                                   agg::new("sum", 1)]);
+
+        let aggs = json!({ "aggregates": [{"op": "count", "col": 1},
+                                          {"op": "sum", "col": 1}] });
+        let gb = HashedGroupBy::new(r, w2, 0, aggs["aggregates"].clone());
         gb.start();
 
-        let results = r2.to_vec();
+        let mut results = r2.to_vec();
+        results.sort_by(|a, b| a[0].as_i64().cmp(&b[0].as_i64()));
+
         assert_eq!(results[0], vec![Data::Integer(1), Data::Integer(1),
                                     Data::Integer(2), Data::Integer(11)]);
         assert_eq!(results[1], vec![Data::Integer(2), Data::Integer(-15),

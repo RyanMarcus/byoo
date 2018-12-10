@@ -6,6 +6,8 @@ extern crate tempfile;
 extern crate base64;
 extern crate binary_heap_plus;
 extern crate rand;
+
+#[macro_use]
 extern crate serde_json;
 extern crate either;
 
