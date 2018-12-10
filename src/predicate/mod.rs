@@ -1,3 +1,5 @@
+#![allow(clippy::float_cmp)]
+
 use serde_json;
 use std::boxed::Box;
 use data::{Data};

@@ -15,7 +15,7 @@ pub struct HashedGroupBy {
     aggs: serde_json::Value
 }
 
-
+type RowAndAggs = (Vec<Data>, Vec<Box<Aggregate + Send>>);
 impl HashedGroupBy {
     fn new(child: OperatorReadBuffer, out: OperatorWriteBuffer,
            group_by_col_idx: usize, aggs: serde_json::Value)
@@ -39,7 +39,7 @@ impl HashedGroupBy {
             }
 
             // do the aggregation with a hashmap
-            let mut m: HashMap<Data, (Vec<Data>, Vec<Box<Aggregate + Send>>)> = HashMap::new();
+            let mut m: HashMap<Data, RowAndAggs> = HashMap::new();
 
             let mut buf = nxt_buf.unwrap();
             iterate_buffer!(buf, row, {
