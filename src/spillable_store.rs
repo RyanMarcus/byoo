@@ -35,17 +35,19 @@ impl WritableSpillableStore {
     pub fn new(max_size: usize, types: Vec<DataType>) -> WritableSpillableStore {
         let f = tempfile().unwrap();
         let w = BufWriter::new(f.try_clone().unwrap());
+        let types_copy = types.clone();
+        let num_cols = types.len();
         return WritableSpillableStore {
             data: Vec::with_capacity(max_size / 4),
-            types: types.clone(),
+            types: types,
             max_size: max_size,
             backing_file: f,
             writer: w,
             did_spill: false,
             stats: SpillableStoreStats {
                 rows: 0,
-                types: types.clone(),
-                col_sizes: vec![0 ; types.len()]
+                types: types_copy,
+                col_sizes: vec![0 ; num_cols]
             },
             jh: None
         };
@@ -73,7 +75,7 @@ impl WritableSpillableStore {
         mem::swap(&mut buf, &mut self.data);
         
         for d in buf {
-            self.writer.write(&d.into_bytes()).unwrap();
+            self.writer.write_all(&d.into_bytes()).unwrap();
         }
 
         self.data.extend_from_slice(row);
@@ -144,7 +146,7 @@ impl ReadableSpillableStore {
                 Err(e) => {
                     if let ErrorKind::UnexpectedEof = e.kind() {
                         // if we hit an EOF, we shouldn't have any data in the row
-                        assert!(row.len() == 0);
+                        assert!(row.is_empty());
                         return false;
                     } else {
                         panic!("Unexpected error when reading spill storage");
