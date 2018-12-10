@@ -347,7 +347,7 @@ mod tests {
             let mut data = Vec::new();
 
             iterate_buffer!(r, row, {
-                for d in row {
+                for _ in row {
                     if let Data::Integer(i) = row[0] {
                         data.push(i);
                     } else {

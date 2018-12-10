@@ -113,7 +113,7 @@ mod tests {
         w.flush();
         drop(w);
 
-        let (mut r2, w2) = make_buffer_pair(5, 10, vec![DataType::INTEGER, DataType::INTEGER,
+        let (r2, w2) = make_buffer_pair(5, 10, vec![DataType::INTEGER, DataType::INTEGER,
                                                         DataType::INTEGER]);
         
         let gb = SortedGroupBy::new(r, w2, 0, vec![agg::new("count", 1)]);
@@ -134,7 +134,7 @@ mod tests {
         w.flush();
         drop(w);
 
-        let (mut r2, w2) = make_buffer_pair(5, 10, vec![DataType::INTEGER, DataType::INTEGER,
+        let (r2, w2) = make_buffer_pair(5, 10, vec![DataType::INTEGER, DataType::INTEGER,
                                                         DataType::INTEGER, DataType::INTEGER]);
         
         let gb = SortedGroupBy::new(r, w2, 0, vec![agg::new("count", 1),

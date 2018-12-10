@@ -402,7 +402,7 @@ pub fn tree_to_gv(root: &OperatorNode) -> String {
 #[cfg(test)]
 mod tests {
 
-    use compile::{OperatorNode, tree_to_gv, create_op_tree};
+    use compile::{tree_to_gv, create_op_tree};
     use serde_json;
     
     #[test]

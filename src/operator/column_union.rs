@@ -94,7 +94,7 @@ impl ConstructableOperator for ColumnUnion {
 #[cfg(test)]
 mod tests {
     use operator::column_union::ColumnUnion;
-    use operator_buffer::{OperatorReadBuffer, OperatorWriteBuffer, make_buffer_pair};
+    use operator_buffer::{make_buffer_pair};
     use data::{Data, DataType};
     
     #[test]

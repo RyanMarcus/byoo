@@ -56,7 +56,6 @@ mod tests {
     use operator::output::CsvOutput;
     use operator_buffer::{make_buffer_pair};
     use data::{Data,DataType};
-    use std::io::Cursor;
 
     
     #[test]

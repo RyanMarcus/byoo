@@ -98,7 +98,7 @@ impl ConstructableOperator for LoopJoin {
 #[cfg(test)]
 mod tests {
     use operator::join::LoopJoin;
-    use operator_buffer::{OperatorReadBuffer, OperatorWriteBuffer, make_buffer_pair};
+    use operator_buffer::{make_buffer_pair};
     use data::{Data, DataType};
 
     #[test]

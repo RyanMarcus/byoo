@@ -152,7 +152,7 @@ impl ConstructableOperator for Sort {
 #[cfg(test)]
 mod tests {
     use operator::Sort;
-    use operator_buffer::{OperatorReadBuffer, OperatorWriteBuffer, make_buffer_pair};
+    use operator_buffer::{make_buffer_pair};
     use data::{Data, DataType};
     use rand::prelude::*;
     use std::thread;
