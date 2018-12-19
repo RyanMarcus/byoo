@@ -123,8 +123,8 @@ impl PeekableOperatorReadBuffer {
 
     fn load_next_block(&mut self) {
         if let Some(rb) = self.read_buf.data() {
-            for row in rb.iter() {
-                self.dq.push_back(row.to_vec());
+            for row in rb.to_vec() {
+                self.dq.push_back(row);
             }
         }
 

@@ -68,6 +68,13 @@ impl RowBuffer {
     pub fn iter(&self) -> RowBufferIterator {
         return RowBufferIterator::new(self);
     }
+
+    pub fn to_vec(&self) -> Vec<Vec<Data>> {
+        return self.data
+            .chunks(self.types.len())
+            .map(|c| c.to_vec())
+            .collect();
+    }
 }
 
 
