@@ -36,7 +36,7 @@ impl RowBuffer {
         return &self.data[row*self.types.len()..(row+1)*self.types.len()];
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, debug_assertions))]
     fn write_value(&mut self, d: Data) {
         debug_assert!(!self.is_full());
         match self.types[self.data.len() % self.types.len()] {

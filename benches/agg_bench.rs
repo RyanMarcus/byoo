@@ -55,7 +55,7 @@ fn hashed_group_by_plan() -> Vec<Vec<Data>> {
  "options": { "cols": [0, 3, 4, 5] }, 
  "input": [
      {
-         "op": "sorted group by",
+         "op": "hashed group by",
          "options": {
              "col": 0,
              "aggregates": [
