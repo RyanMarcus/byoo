@@ -1,8 +1,8 @@
 use operator_buffer::OperatorReadBuffer;
 use spillable_store::WritableSpillableStore;
 use std::collections::vec_deque::VecDeque;
-use std::collections::hash_map::{HashMap, DefaultHasher};
 use std::hash::{Hash, Hasher};
+use fnv::{FnvHashMap, FnvHasher};
 use std::cmp;
 
 
@@ -11,7 +11,7 @@ const MAX_FILES:usize = 32;
 type Node = usize;
 struct HashTree {
     nodes: usize,
-    children: HashMap<usize, (usize, usize)>,
+    children: FnvHashMap<usize, (usize, usize)>,
     sizes: Vec<usize>
 }
 
@@ -19,7 +19,7 @@ struct HashTree {
 impl HashTree {    
     fn new() -> HashTree {
         return HashTree {
-            nodes: 1, children: HashMap::new(), sizes: vec![0]
+            nodes: 1, children: FnvHashMap::default(), sizes: vec![0]
         };
     }
 
@@ -97,7 +97,7 @@ impl ReadableHashPartitionStore {
         iterate_buffer!(data, row, {
             wss.push_row(row);
 
-            let mut hasher = DefaultHasher::new();
+            let mut hasher = FnvHasher::default();
             for &col_idx in relv_cols {
                 row[col_idx].hash(&mut hasher);
             }
@@ -156,7 +156,7 @@ impl ReadableHashPartitionStore {
         }
 
         iterate_buffer!(data, row, {
-            let mut hasher = DefaultHasher::new();
+            let mut hasher = FnvHasher::default();
             for &col_idx in relv_cols.iter() {
                 row[col_idx].hash(&mut hasher);
             }
@@ -187,7 +187,7 @@ mod test {
     use data::{Data, DataType};
     use hash_partition_store::{ReadableHashPartitionStore, MAX_FILES};
     use spillable_store::WritableSpillableStore;
-    use std::collections::hash_map::{DefaultHasher};
+    use fnv::{FnvHasher};
     use std::hash::{Hasher, Hash};
 
     
@@ -217,7 +217,7 @@ mod test {
 
             let mut buf = nxt.unwrap();
             iterate_buffer!(buf, row, {
-                let mut hasher = DefaultHasher::new();
+                let mut hasher = FnvHasher::default();
                 row[0].hash(&mut hasher);
                 let mut hash_value = (hasher.finish() % 32)
                     as usize;
