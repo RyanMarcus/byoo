@@ -36,6 +36,7 @@ impl RowBuffer {
         return &self.data[row*self.types.len()..(row+1)*self.types.len()];
     }
 
+    #[cfg(test)]
     fn write_value(&mut self, d: Data) {
         debug_assert!(!self.is_full());
         match self.types[self.data.len() % self.types.len()] {
@@ -48,6 +49,8 @@ impl RowBuffer {
         self.data.push(d);
     }
 
+
+    #[cfg(debug_assertions)]
     pub fn write_values(&mut self, data: Vec<Data>) {
         debug_assert!(data.len() == self.types.len());
         debug_assert!(!self.is_full());
@@ -57,6 +60,11 @@ impl RowBuffer {
         }
     }
 
+    #[cfg(not(debug_assertions))]
+    pub fn write_values(&mut self, mut data: Vec<Data>) {
+        self.data.append(&mut data);
+    }
+    
     pub fn iter(&self) -> RowBufferIterator {
         return RowBufferIterator::new(self);
     }
