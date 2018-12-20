@@ -255,7 +255,8 @@ impl OperatorWriteBuffer {
         
         let data: Vec<Data> = row.into_iter().enumerate().map(|(idx, field)| {
             let dt = &self.types[idx];
-            return dt.from_string(field);
+            return dt.from_string(field)
+                .unwrap_or_else(|| dt.default_value());
         }).collect();
 
         self.write(data);

@@ -95,12 +95,27 @@ impl DataType {
         };
     }
 
-    pub fn from_string(&self, data: String) -> Data {
+    pub fn from_string(&self, data: String) -> Option<Data> {
         return match *self {
-            DataType::INTEGER => Data::Integer(data.parse::<i64>().unwrap()),
-            DataType::REAL => Data::Real(data.parse::<f64>().unwrap()),
-            DataType::TEXT => Data::Text(data),
-            DataType::BLOB => Data::Blob(data.into_bytes())
+            DataType::INTEGER => {
+                data.parse::<i64>().ok()
+                    .map(|i| Data::Integer(i))
+            },
+            DataType::REAL => {
+                data.parse::<f64>().ok()
+                    .map(|f| Data::Real(f))
+            }
+            DataType::TEXT => Some(Data::Text(data)),
+            DataType::BLOB => Some(Data::Blob(data.into_bytes()))
+        }
+    }
+
+    pub fn default_value(&self) -> Data {
+        return match *self {
+            DataType::INTEGER => Data::Integer(0),
+            DataType::REAL => Data::Real(0.0),
+            DataType::TEXT => Data::Text("".to_string()),
+            DataType::BLOB => Data::Blob(vec![])
         }
     }
 }
