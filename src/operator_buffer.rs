@@ -1,3 +1,4 @@
+use predicate::Predicate;
 use std::sync::mpsc::{Sender, Receiver, channel};
 use std::collections::VecDeque;
 use row_buffer::{RowBuffer};
@@ -15,7 +16,8 @@ pub struct OperatorWriteBuffer {
     buffers: VecDeque<RowBuffer>,
     send: Sender<RowBuffer>,
     recv: Receiver<RowBuffer>,
-    types: Vec<DataType>
+    types: Vec<DataType>,
+    filters: Vec<Predicate>
 }
 
 pub struct PeekableOperatorReadBuffer {
@@ -186,7 +188,8 @@ impl OperatorWriteBuffer {
 
         
         return OperatorWriteBuffer {
-            buffers, send, recv, types
+            buffers, send, recv, types,
+            filters: vec![]
         };
     }
 
@@ -224,13 +227,27 @@ impl OperatorWriteBuffer {
             self.ensure_buffer();
         }
     }
+
+    pub fn add_filter(&mut self, filter: Predicate) {
+        self.filters.push(filter);
+    }
     
     pub fn write(&mut self, row: Vec<Data>) {
+        if !self.filters.iter().all(|p| p.eval(&row)) {
+            // don't write the row.
+            return;
+        }
+
         self.prepare_for_write();
         self.buffers.front_mut().unwrap().write_values(row);
     }
 
     pub fn copy_and_write(&mut self, row: &[Data]) {
+        if !self.filters.iter().all(|p| p.eval(&row)) {
+            // don't write the row.
+            return;
+        }
+
         self.prepare_for_write();
         self.buffers.front_mut().unwrap().copy_and_write_values(row);
     }
@@ -243,7 +260,7 @@ impl OperatorWriteBuffer {
         // TODO candidate for optimization, since this will do multiple
         // copies
         for row in rows.chunks(self.types.len()) {
-            self.write(row.to_vec());
+            self.copy_and_write(row);
         }
         drop(rows);
     }
@@ -290,6 +307,7 @@ pub fn make_buffer_pair(num_buffers: usize, buffer_size: usize,
 
 #[cfg(test)]
 mod tests {
+    use predicate::Predicate;
     use operator_buffer::make_buffer_pair;
     use std::thread;
     use data::{Data, DataType};
@@ -309,7 +327,9 @@ mod tests {
         w.flush();
         drop(w);
 
+        let mut seen_rows = 0;
         iterate_buffer!(r, idx, row, {
+            seen_rows += 1;
             match idx {
                 0 => { assert_eq!(row[0], Data::Integer(5)); }
                 1 => { assert_eq!(row[0], Data::Integer(6)); }
@@ -317,7 +337,36 @@ mod tests {
                 _ => { panic!("Too many values!"); }
             }
         });
+
+        assert_eq!(seen_rows, 3);
     }
+
+    #[test]
+    fn can_filter() {
+        let (mut r, mut w) = make_buffer_pair(5, 10, vec![DataType::INTEGER]);
+
+        let json = json!({ "op": "eq", "col": 0, "val": 6 });
+        let p = Predicate::from_json(&json);
+        w.add_filter(p);
+
+        w.write(vec![Data::Integer(5)]);
+        w.write(vec![Data::Integer(6)]);
+        w.write(vec![Data::Integer(-100)]);
+        w.flush();
+        drop(w);
+
+        let mut seen_rows = 0;
+        iterate_buffer!(r, idx, row, {
+            seen_rows += 1;
+            match idx {
+                0 => { assert_eq!(row[0], Data::Integer(6)); }
+                _ => { panic!("Too many values!"); }
+            }
+        });
+
+        assert_eq!(seen_rows, 1);
+    }
+
 
     #[test]
     fn can_send_and_recv_multibuf() {
