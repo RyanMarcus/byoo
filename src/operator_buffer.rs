@@ -20,7 +20,8 @@ pub struct OperatorWriteBuffer {
 
 pub struct PeekableOperatorReadBuffer {
     read_buf: OperatorReadBuffer,
-    dq: VecDeque<Vec<Data>>
+    curr_idx: usize,
+    dq: VecDeque<RowBuffer>
 }
 
 macro_rules! iterate_buffer {
@@ -113,6 +114,7 @@ impl PeekableOperatorReadBuffer {
     pub fn new(read_buf: OperatorReadBuffer) -> PeekableOperatorReadBuffer {
         let mut to_r = PeekableOperatorReadBuffer {
             read_buf,
+            curr_idx: 0,
             dq: VecDeque::new()
         };
 
@@ -123,9 +125,7 @@ impl PeekableOperatorReadBuffer {
 
     fn load_next_block(&mut self) {
         if let Some(rb) = self.read_buf.data() {
-            for row in rb.to_vec() {
-                self.dq.push_back(row);
-            }
+            self.dq.push_back(rb.into_copy());
         }
 
         if !self.dq.is_empty() {
@@ -133,22 +133,42 @@ impl PeekableOperatorReadBuffer {
         }
     }
 
-    pub fn peek(&self) -> Option<&Vec<Data>> {
+    pub fn peek(&self) -> Option<&[Data]> {
         if self.dq.is_empty() {
             return None;
         }
 
-        return Some(&self.dq[0]);
-    }
+        if self.curr_idx >= self.dq[0].num_rows() {
+            // we need to look one RowBuffer ahead (the next time
+            // pop() is called, the old one will be removed)
+            let nxt_idx = self.curr_idx - self.dq[0].num_rows();
+            if self.dq.len() < 2 { return None; }
+            if nxt_idx >= self.dq[1].num_rows() {
+                panic!("Next rowbuffer in peek did not have enough rows");
+            }
 
-    pub fn pop(&mut self) -> Option<Vec<Data>> {
-        let to_r = self.dq.pop_front();
-
-        if self.dq.is_empty() {
-            self.load_next_block();
+            return Some(self.dq[1].get_row(nxt_idx));
         }
 
-        return to_r;
+        return Some(self.dq[0].get_row(self.curr_idx));
+    }
+
+    pub fn pop(&mut self) -> Option<&[Data]> {
+        if self.curr_idx >= self.dq[0].num_rows() {
+            // we've hit the end of a rowbuffer.
+            self.curr_idx = 0;
+            self.dq.pop_front();
+            
+            if self.dq.is_empty() {
+                self.load_next_block();
+            }
+        }
+
+        if self.dq.len() == 0 { return None; }
+        
+        let to_r = self.dq[0].get_row(self.curr_idx);
+        self.curr_idx += 1;
+        return Some(to_r);
     }
 }
 
@@ -195,17 +215,26 @@ impl OperatorWriteBuffer {
             return false;
         }
     }
-    
-    pub fn write(&mut self, row: Vec<Data>) {
-        self.ensure_buffer();
+
+    fn prepare_for_write(&mut self) {
+         self.ensure_buffer();
 
         if self.have_full_front() {
             self.send_buffer();
             self.ensure_buffer();
         }
-
+    }
+    
+    pub fn write(&mut self, row: Vec<Data>) {
+        self.prepare_for_write();
         self.buffers.front_mut().unwrap().write_values(row);
     }
+
+    pub fn copy_and_write(&mut self, row: &[Data]) {
+        self.prepare_for_write();
+        self.buffers.front_mut().unwrap().copy_and_write_values(row);
+    }
+
 
     pub fn write_many(&mut self, rows: Vec<Data>) {
         // ensure this is a valid number of data points

@@ -106,8 +106,8 @@ impl Sort {
                  let r2 = h2.peek();
 
                  // reverse here because the heap is a max heap
-                 return sort_fn(&r1.unwrap().as_slice(),
-                                &r2.unwrap().as_slice()).reverse();
+                 return sort_fn(&r1.unwrap(),
+                                &r2.unwrap()).reverse();
             });
         
         for r in readers {
@@ -119,11 +119,13 @@ impl Sort {
 
         while !bheap.is_empty() {
             let mut next_reader = bheap.pop().unwrap();
-            let next_row = next_reader.pop().unwrap();
+            {
+                let next_row = next_reader.pop().unwrap();
 
-            // write the row to the output, add the reader
-            // back into the heap.
-            self.output.write(next_row);
+                // write the row to the output, add the reader
+                // back into the heap.
+                self.output.copy_and_write(next_row);
+            }
 
             if next_reader.peek().is_some() {
                 bheap.push(next_reader);

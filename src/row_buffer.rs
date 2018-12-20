@@ -1,4 +1,5 @@
 use data::{Data, DataType};
+use std::mem;
 
 pub struct RowBuffer {
     types: Vec<DataType>,
@@ -24,7 +25,7 @@ impl RowBuffer {
         return self.data.len() == 0;
     }
 
-    fn num_rows(&self) -> usize {
+    pub fn num_rows(&self) -> usize {
         return self.data.len() / self.types.len();
     }
 
@@ -32,7 +33,18 @@ impl RowBuffer {
         self.data.clear();
     }
 
-    fn get_row(&self, row: usize) -> &[Data] {
+    pub fn into_copy(&mut self) -> RowBuffer {
+        let mut tmp = Vec::with_capacity(self.data.capacity());
+        mem::swap(&mut self.data, &mut tmp);
+
+        return RowBuffer {
+            types: self.types.clone(),
+            data: tmp,
+            max_rows: self.max_rows
+        };
+    }
+
+    pub fn get_row(&self, row: usize) -> &[Data] {
         return &self.data[row*self.types.len()..(row+1)*self.types.len()];
     }
 
@@ -63,6 +75,10 @@ impl RowBuffer {
     #[cfg(not(debug_assertions))]
     pub fn write_values(&mut self, mut data: Vec<Data>) {
         self.data.append(&mut data);
+    }
+
+    pub fn copy_and_write_values(&mut self, data: &[Data]) {
+        self.data.extend_from_slice(data);
     }
     
     pub fn iter(&self) -> RowBufferIterator {
