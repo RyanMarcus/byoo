@@ -291,10 +291,10 @@ impl OperatorWriteBuffer {
         drop(rows);
     }
 
-    pub fn write_strings(&mut self, row: Vec<String>) {
-        assert_eq!(row.len(), self.types.len(),
-                   "Was expecting {} columns in operator but write_strings got {}",
-                   self.types.len(), row.len());
+    pub fn write_strings(&mut self, mut row: Vec<String>) {
+        if let Some(ref cols) = self.projection {
+            row = cols.iter().map(|&col_idx| row[col_idx].clone()).collect()
+        }
         
         let data: Vec<Data> = row.into_iter().enumerate().map(|(idx, field)| {
             let dt = &self.types[idx];
@@ -302,7 +302,14 @@ impl OperatorWriteBuffer {
                 .unwrap_or_else(|| dt.default_value());
         }).collect();
 
-        self.write(data);
+        if !self.filters.iter().all(|p| p.eval(&data)) {
+            // don't write the row.
+            return;
+        }
+
+        self.prepare_for_write();
+        self.buffers.front_mut().unwrap()
+            .write_values(data);
     }
 
     pub fn flush(&mut self) {

@@ -303,6 +303,20 @@ impl OperatorNode {
                 let child = self.children.into_iter().nth(0).unwrap();
                 return child.run(output);
             },
+            Operator::Project => {
+                // the output buffer we have is set for the correct datatypes.
+                // we need to set it to do the projection, and then pass it
+                // to our child.
+                let cols = self.options["cols"].as_array().unwrap()
+                    .iter()
+                    .map(|v| v.as_i64().unwrap() as usize)
+                    .collect();
+                output.as_mut().unwrap().set_projection(cols);
+
+                assert_eq!(self.children.len(), 1);
+                let child = self.children.into_iter().nth(0).unwrap();
+                return child.run(output);
+            },
             Operator::CSVOut => spawn_op!(CsvOutput, output, read_bufs, f, self.options),
             Operator::CSVRead => spawn_op!(CsvScan, output, read_bufs, f, self.options),
             Operator::ColumnarOut => spawn_op!(ColumnarOutput, output, read_bufs, f, self.options),
@@ -310,7 +324,6 @@ impl OperatorNode {
             Operator::LoopJoin => spawn_op!(LoopJoin, output, read_bufs, f, self.options),
             Operator::MergeJoin => spawn_op!(MergeJoin, output, read_bufs, f, self.options),
             Operator::HashJoin => spawn_op!(HashJoin, output, read_bufs, f, self.options),
-            Operator::Project => spawn_op!(Project, output, read_bufs, f, self.options),
             Operator::Sort => spawn_op!(Sort, output, read_bufs, f, self.options),
             Operator::Union => spawn_op!(ColumnUnion, output, read_bufs, f, self.options),
             Operator::SortedGroupBy => spawn_op!(SortedGroupBy, output, read_bufs, f, self.options),
