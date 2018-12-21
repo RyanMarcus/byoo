@@ -93,15 +93,16 @@ impl HashJoin {
                 .push(row.to_vec());
         });
 
+        let mut out_row = Vec::new();
         iterate_buffer!(right, row, {
             let key2 = extract_keys(row, &self.right_cols);
             if let Some(matches) = ht.get(&key2) {
                 // all these rows match.
                 for matching_row in matches.iter() {
-                    let mut out_row = Vec::new();
+                    out_row.clear();
                     out_row.extend_from_slice(matching_row);
                     out_row.extend_from_slice(row);
-                    self.out.write(out_row);
+                    self.out.copy_and_write(&out_row);
                 }
             }
         });

@@ -139,7 +139,7 @@ impl ReadableHashPartitionStore {
         
         return ReadableHashPartitionStore::with_partitions(
             num_partitions,
-            max_size,
+            4096,
             wss.into_read_buffer().1,
             relv_cols);
     }
