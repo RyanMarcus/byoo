@@ -5,7 +5,7 @@ use std::fs::File;
 use byteorder::{WriteBytesExt, LittleEndian};
 use operator::ConstructableOperator;
 use serde_json;
-use data::{WriteByooDataExt};
+use data::{WriteByooDataExt, ReadByooDataExt};
 
 pub struct ColumnarOutput<T> {
     input: OperatorReadBuffer,
@@ -104,7 +104,7 @@ impl ConstructableOperator for ColumnarOutput<BufWriter<File>> {
 mod tests {
     use operator::output::ColumnarOutput;
     use operator_buffer::{make_buffer_pair};
-    use data::{Data,DataType};
+    use data::{Data,DataType, ReadByooDataExt};
     use byteorder::{ReadBytesExt, LittleEndian};
     use std::io::Cursor;
 
@@ -133,11 +133,11 @@ mod tests {
         assert_eq!(cursor.read_u16::<LittleEndian>().unwrap(),
                    DataType::INTEGER.to_code()); // col code
         assert_eq!(cursor.read_u64::<LittleEndian>().unwrap(), 21); // col offset
-        assert_eq!(DataType::INTEGER.read_item(&mut cursor).unwrap(),
+        assert_eq!(cursor.read_data(&DataType::INTEGER).unwrap(),
                    Data::Integer(5));
-        assert_eq!(DataType::INTEGER.read_item(&mut cursor).unwrap(),
+        assert_eq!(cursor.read_data(&DataType::INTEGER).unwrap(),
                    Data::Integer(6));
-        assert_eq!(DataType::INTEGER.read_item(&mut cursor).unwrap(),
+        assert_eq!(cursor.read_data(&DataType::INTEGER).unwrap(),
                    Data::Integer(7));
     }
 
@@ -173,29 +173,29 @@ mod tests {
         
         assert_eq!(cursor.read_u64::<LittleEndian>().unwrap(), 31); // col offset
         assert_eq!(cursor.read_u64::<LittleEndian>().unwrap(), 31 + 4*8); // col offset
-        assert_eq!(DataType::INTEGER.read_item(&mut cursor).unwrap(),
+        assert_eq!(cursor.read_data(&DataType::INTEGER).unwrap(),
                    Data::Integer(5));
-        assert_eq!(DataType::INTEGER.read_item(&mut cursor).unwrap(),
+        assert_eq!(cursor.read_data(&DataType::INTEGER).unwrap(),
                    Data::Integer(6));
-        assert_eq!(DataType::INTEGER.read_item(&mut cursor).unwrap(),
+        assert_eq!(cursor.read_data(&DataType::INTEGER).unwrap(),
                    Data::Integer(7));
-        assert_eq!(DataType::INTEGER.read_item(&mut cursor).unwrap(),
+        assert_eq!(cursor.read_data(&DataType::INTEGER).unwrap(),
                    Data::Integer(-8));
         
         let s1 = String::from("string 1");
-        assert_eq!(DataType::TEXT.read_item(&mut cursor).unwrap(),
+        assert_eq!(cursor.read_data(&DataType::TEXT).unwrap(),
                    Data::Text(s1));
         
         let s2 = String::from("a longer string");
-        assert_eq!(DataType::TEXT.read_item(&mut cursor).unwrap(),
+        assert_eq!(cursor.read_data(&DataType::TEXT).unwrap(),
                    Data::Text(s2));
         
         let s3 = String::from("c");
-        assert_eq!(DataType::TEXT.read_item(&mut cursor).unwrap(),
+        assert_eq!(cursor.read_data(&DataType::TEXT).unwrap(),
                    Data::Text(s3));
         
         let s4 = String::from("!!!");
-        assert_eq!(DataType::TEXT.read_item(&mut cursor).unwrap(),
+        assert_eq!(cursor.read_data(&DataType::TEXT).unwrap(),
                    Data::Text(s4));
         
     }

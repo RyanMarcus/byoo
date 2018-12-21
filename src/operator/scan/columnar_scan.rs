@@ -3,7 +3,7 @@ use operator::ConstructableOperator;
 use std::fs::File;
 use std::io::{Seek, SeekFrom, BufRead, BufReader};
 use byteorder::{ReadBytesExt, LittleEndian};
-use data::{DataType};
+use data::{DataType, ReadByooDataExt};
 use serde_json;
 
 pub struct ColumnarScan<T> {
@@ -48,7 +48,7 @@ impl <T: BufRead + Seek> ColumnarScan<T> {
         self.reader.seek(SeekFrom::Current(offset as i64)).unwrap();
 
         for _ in 0..num_rows {
-            let data = datatype.read_item(&mut self.reader).unwrap();
+            let data = self.reader.read_data(&datatype).unwrap();
             self.buffer.write(vec![data]);
         }
         

@@ -10,6 +10,7 @@ extern crate binary_heap_plus;
 extern crate rand;
 extern crate fnv;
 extern crate hashbrown;
+extern crate snap;
 
 #[cfg_attr(test, macro_use)] 
 extern crate serde_json;

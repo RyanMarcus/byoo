@@ -1,4 +1,4 @@
-use data::{Data, DataType, WriteByooDataExt};
+use data::{Data, DataType, WriteByooDataExt, ReadByooDataExt};
 use std::mem;
 use std::fs::File;
 use std::io::{Write, BufWriter, BufReader, Seek, SeekFrom, ErrorKind};
@@ -12,7 +12,7 @@ pub struct WritableSpillableStore {
     types: Vec<DataType>,
     max_size: usize,
     backing_file: File,
-    writer: BufWriter<File>,
+    writer: snap::Writer<File>,
     did_spill: bool,
     stats: SpillableStoreStats,
     jh: Option<JoinHandle<()>>
@@ -27,14 +27,14 @@ pub struct SpillableStoreStats {
 struct ReadableSpillableStore {
     data: Vec<Data>,
     types: Vec<DataType>,
-    reader: BufReader<File>,
+    reader: BufReader<snap::Reader<File>>,
     output: OperatorWriteBuffer
 }
 
 impl WritableSpillableStore {
     pub fn new(max_size: usize, types: Vec<DataType>) -> WritableSpillableStore {
         let f = tempfile().unwrap();
-        let w = BufWriter::new(f.try_clone().unwrap());
+        let w = snap::Writer::new(f.try_clone().unwrap());
         let types_copy = types.clone();
         let num_cols = types.len();
         return WritableSpillableStore {
@@ -104,10 +104,14 @@ impl WritableSpillableStore {
         // At this point, we know there is no other reader running.
         let (r, w) = make_buffer_pair(5, 4096, self.types.clone());
 
+        let mut rdr = self.backing_file.try_clone().unwrap();
+        rdr.seek(SeekFrom::Start(0)).unwrap();
+        let snap_reader = snap::Reader::new(rdr);
+        
         let reader = ReadableSpillableStore {
             data: self.data.clone(),
             types: self.types.clone(),
-            reader: BufReader::new(self.backing_file.try_clone().unwrap()),
+            reader: BufReader::new(snap_reader),
             output: w
         };
 
@@ -126,10 +130,8 @@ impl WritableSpillableStore {
 
 impl ReadableSpillableStore {
     fn start(mut self) {
-        // seek to the start
-        self.reader.seek(SeekFrom::Start(0)).unwrap();
-        
-        // first, read through the entire file.
+        // first, read through the entire file (the seek back to the start
+        // happens in the WritableSpillableStore read() function)
         while self.read_row_from_file() {}
 
         // now, emit all of the remaining data in the buffer
@@ -140,7 +142,7 @@ impl ReadableSpillableStore {
     fn read_row_from_file(&mut self) -> bool {
         let mut row = Vec::with_capacity(self.types.len());
         for dt in self.types.iter() {
-            match dt.read_item(&mut self.reader) {
+            match self.reader.read_data(dt) {
                 Ok(v) => { row.push(v); },
                 Err(e) => {
                     if let ErrorKind::UnexpectedEof = e.kind() {

@@ -16,6 +16,7 @@ either = "1.4"
 approx = "0.3.0"
 fnv = "1.0.6"
 hashbrown = "0.1"
+snap = "0.2"
 
 [profile.release]
 debug = true

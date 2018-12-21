@@ -52,49 +52,6 @@ impl DataType {
             _ => panic!("unknown datatype string")
         }
     }
-    
-    pub fn read_item<T: BufRead>(&self, reader: &mut T) -> Result<Data> {
-        match *self {
-            DataType::INTEGER => {
-                return reader.read_i64::<LittleEndian>()
-                    .map(Data::Integer);
-            },
-            DataType::REAL => {
-                return reader.read_f64::<LittleEndian>()
-                    .map(Data::Real);
-            },
-            DataType::TEXT => {
-                let mut str_buf = Vec::new();
-                if let Err(e) = reader.read_until(0, &mut str_buf) {
-                    return Err(e);
-                }
-
-                if str_buf.is_empty() {
-                    // it was empty, we hit an EOF.
-                    return Err(Error::new(
-                        ErrorKind::UnexpectedEof, "Could not read string"));
-                }
-                
-                // pop off the null
-                str_buf.pop();
-
-                return Ok(Data::Text(String::from_utf8(str_buf).unwrap()));
-            },
-            DataType::BLOB => {
-                let blob_length = reader.read_u64::<LittleEndian>()? as usize;
-                    
-                let mut data = Vec::with_capacity(blob_length);
-
-                // TODO buffer this, don't read byte by byte
-                for _ in 0..blob_length {
-                    data.push(reader.read_u8()?);
-                    
-                }
-
-                return Ok(Data::Blob(data));
-            }
-        };
-    }
 
     pub fn from_string(&self, data: String) -> Option<Data> {
         return match *self {
@@ -183,6 +140,53 @@ pub trait WriteByooDataExt: io::Write {
     }
 }
 impl<W: io::Write + ?Sized> WriteByooDataExt for W {}
+
+pub trait ReadByooDataExt: io::BufRead {
+    fn read_data(&mut self, data_type: &DataType) -> Result<Data> {
+        match data_type {
+            DataType::INTEGER => {
+                return self.read_i64::<LittleEndian>()
+                    .map(Data::Integer);
+            },
+            DataType::REAL => {
+                return self.read_f64::<LittleEndian>()
+                    .map(Data::Real);
+            },
+            DataType::TEXT => {
+                let mut str_buf = Vec::new();
+                if let Err(e) = self.read_until(0, &mut str_buf) {
+                    return Err(e);
+                }
+
+                if str_buf.is_empty() {
+                    // it was empty, we hit an EOF.
+                    return Err(Error::new(
+                        ErrorKind::UnexpectedEof, "Could not read string"));
+                }
+                
+                // pop off the null
+                str_buf.pop();
+
+                return Ok(Data::Text(String::from_utf8(str_buf).unwrap()));
+            },
+            DataType::BLOB => {
+                let blob_length = self.read_u64::<LittleEndian>()? as usize;
+                
+                let mut data = Vec::with_capacity(blob_length);
+
+                // TODO buffer this, don't read byte by byte
+                for _ in 0..blob_length {
+                    data.push(self.read_u8()?);
+                    
+                }
+
+                return Ok(Data::Blob(data));
+            }
+        };
+        
+    }
+}
+impl<R: io::BufRead + ?Sized> ReadByooDataExt for R {}
 
 impl PartialOrd for Data {
     fn partial_cmp(&self, other: &Data) -> Option<Ordering> {
