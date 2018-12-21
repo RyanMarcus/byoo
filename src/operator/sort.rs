@@ -205,7 +205,7 @@ mod tests {
 
         let mut data = Vec::new();
         let mut byoo_data = Vec::new();
-        for _ in 0..10005 {
+        for _ in 0..20005 {
             let r = random::<i64>();
             data.push(r);
             byoo_data.push(Data::Integer(r));
@@ -232,6 +232,44 @@ mod tests {
             }
         });
 
+        assert_eq!(res, data);
+    }
+
+    #[test]
+    fn sorts_spill_multicol() {
+        let (r, mut w) = make_buffer_pair(5, 10, vec![DataType::INTEGER, DataType::INTEGER]);
+        let (mut r2, w2) = make_buffer_pair(5, 10, vec![DataType::INTEGER, DataType::INTEGER]);
+
+        let mut data = Vec::new();
+        let mut byoo_data = Vec::new();
+        for _ in 0..20005 {
+            let r = random::<i64>();
+            data.push(r);
+            byoo_data.push(vec![Data::Integer(r), Data::Integer(1000)]);
+        }
+        data.sort();
+
+        thread::spawn(move || {
+            for d in byoo_data {
+                w.write(d);
+            }
+        });
+
+        thread::spawn(move || {
+            let s = Sort::new(r, w2, vec![0], 1000);
+            s.start();
+        });
+
+        let mut res = Vec::new();
+        iterate_buffer!(r2, row, {
+            if let Data::Integer(i) = row[0] {
+                res.push(i);
+            } else {
+                panic!("wrong datatype");
+            }
+        });
+
+        assert_eq!(res.len(), data.len());
         assert_eq!(res, data);
     }
 }

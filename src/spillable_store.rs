@@ -27,7 +27,7 @@ pub struct SpillableStoreStats {
 struct ReadableSpillableStore {
     data: Vec<Data>,
     types: Vec<DataType>,
-    reader: BufReader<snap::Reader<File>>,
+    reader: BufReader<snap::Reader<BufReader<File>>>,
     output: OperatorWriteBuffer
 }
 
@@ -106,7 +106,7 @@ impl WritableSpillableStore {
 
         let mut rdr = self.backing_file.try_clone().unwrap();
         rdr.seek(SeekFrom::Start(0)).unwrap();
-        let snap_reader = snap::Reader::new(rdr);
+        let snap_reader = snap::Reader::new(BufReader::new(rdr));
         
         let reader = ReadableSpillableStore {
             data: self.data.clone(),
