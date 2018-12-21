@@ -3,7 +3,7 @@ use predicate::Predicate;
 use serde_json;
 use std::collections::{VecDeque};
 use operator_buffer::{OperatorReadBuffer, OperatorWriteBuffer, make_buffer_pair};
-use operator::{ConstructableOperator, Project, Sort, ColumnUnion};
+use operator::{ConstructableOperator, Sort, ColumnUnion};
 use operator::output::{CsvOutput, ColumnarOutput};
 use operator::scan::{CsvScan, ColumnarScan};
 use operator::join::{LoopJoin, MergeJoin, HashJoin};
