@@ -4,7 +4,6 @@ extern crate byoo;
 #[cfg(test)]
 mod tests {
     use byoo;
-    use byoo::rows_to_string;
 
     #[test]
     fn imdb_2010_keywords() {
