@@ -1,8 +1,9 @@
 use data::{DataType};
+use predicate::Predicate;
 use serde_json;
 use std::collections::{VecDeque};
 use operator_buffer::{OperatorReadBuffer, OperatorWriteBuffer, make_buffer_pair};
-use operator::{ConstructableOperator, Filter, Project, Sort, ColumnUnion};
+use operator::{ConstructableOperator, Project, Sort, ColumnUnion};
 use operator::output::{CsvOutput, ColumnarOutput};
 use operator::scan::{CsvScan, ColumnarScan};
 use operator::join::{LoopJoin, MergeJoin, HashJoin};
@@ -179,9 +180,9 @@ fn get_operator_out_type(opcode: &Operator,
 macro_rules! spawn_op {
     ($x: ident, $p1: expr, $p2: expr, $p3: expr, $p4: expr) => {{
         let op = $x::from_buffers($p1, $p2, $p3, $p4);
-        thread::spawn(move || {
+        Some(thread::spawn(move || {
             op.start();
-        })
+        }))
     }}
 }
 
@@ -240,7 +241,7 @@ impl OperatorNode {
     }
 
     pub fn start(self) -> JoinHandle<()> {
-        return self.run(None);
+        return self.run(None).unwrap();
     }
 
     pub fn start_save(self) -> (OperatorReadBuffer, JoinHandle<()>) {
@@ -252,10 +253,11 @@ impl OperatorNode {
         };
 
 
-        return (r, self.run(Some(w)));
+        return (r, self.run(Some(w)).unwrap());
     }
     
-    fn run(self, output: Option<OperatorWriteBuffer>) -> JoinHandle<()> {
+    fn run(self, output: Option<OperatorWriteBuffer>)
+           -> Option<JoinHandle<()>> {
 
         // check to see if we need an input or output file
         let f = if self.opcode.requires_input_file() {
@@ -288,11 +290,21 @@ impl OperatorNode {
         };
 
         let jh = match self.opcode {
+            Operator::Filter => {
+                // we need to add to the output buffer's filters, and then pass
+                // it along to the child.
+                let predicate = Predicate::from_json(
+                    &self.options["predicate"]);
+
+                assert_eq!(write_bufs.len(), 1);
+                write_bufs[0].add_filter(predicate);
+                
+                None
+            },
             Operator::CSVOut => spawn_op!(CsvOutput, output, read_bufs, f, self.options),
             Operator::CSVRead => spawn_op!(CsvScan, output, read_bufs, f, self.options),
             Operator::ColumnarOut => spawn_op!(ColumnarOutput, output, read_bufs, f, self.options),
             Operator::ColumnarRead => spawn_op!(ColumnarScan, output, read_bufs, f, self.options),
-            Operator::Filter => spawn_op!(Filter, output, read_bufs, f, self.options),
             Operator::LoopJoin => spawn_op!(LoopJoin, output, read_bufs, f, self.options),
             Operator::MergeJoin => spawn_op!(MergeJoin, output, read_bufs, f, self.options),
             Operator::HashJoin => spawn_op!(HashJoin, output, read_bufs, f, self.options),
