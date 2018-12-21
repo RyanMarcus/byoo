@@ -159,7 +159,7 @@ impl ConstructableOperator for Sort {
             .map(|v| v.as_i64().unwrap() as usize)
             .collect();
         
-        return Sort::new(ib, ob, cols, 32768);
+        return Sort::new(ib, ob, cols, 4096);//32768);
     }
 }
 
