@@ -69,14 +69,13 @@ impl WritableSpillableStore {
         }
 
         // it does not fit in memory -- we need to write out
-        // the data buffer to the file and replace it with a new one.
+        // the data buffer to the file and clear it out.
         self.did_spill = true;
-        let mut buf = Vec::with_capacity(self.max_size);
-        mem::swap(&mut buf, &mut self.data);
         
-        for d in buf {
-            self.writer.write_all(&d.into_bytes()).unwrap();
+        for d in self.data.iter() {
+            self.writer.write_all(&d.to_bytes()).unwrap();
         }
+        self.data.clear();
 
         self.data.extend_from_slice(row);
     }

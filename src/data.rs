@@ -145,8 +145,8 @@ impl Data {
         };
     }
     
-    pub fn into_bytes(self) -> Vec<u8> {
-        match self {
+    pub fn to_bytes(&self) -> Vec<u8> {
+        match *self {
             Data::Integer(i) => {
                 let mut buf = [0; 8];
                 LittleEndian::write_i64(&mut buf, i);
@@ -159,13 +159,13 @@ impl Data {
                 return buf.to_vec();
             },
 
-            Data::Text(s) => {
+            Data::Text(ref s) => {
                 let mut to_r = s.as_bytes().to_vec();
                 to_r.push(0);
                 return to_r;
             },
 
-            Data::Blob(b) => {
+            Data::Blob(ref b) => {
                 let mut buf = [0; 8];
                 LittleEndian::write_u64(&mut buf, b.len() as u64);
                 let mut to_r = buf.to_vec();
@@ -269,7 +269,7 @@ impl Hash for Data {
     fn hash<H: Hasher>(&self, state: &mut H) {
         match self {
             Data::Integer(me) => me.hash(state),
-            Data::Real(_) => self.clone().into_bytes().hash(state),
+            Data::Real(_) => self.to_bytes().hash(state),
             Data::Text(me) => me.hash(state),
             Data::Blob(me) => me.hash(state)
         };

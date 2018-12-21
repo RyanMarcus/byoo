@@ -1,6 +1,6 @@
 extern crate byoo;
 
-
+#[cfg(not(debug_assertions))]
 #[cfg(test)]
 mod tests {
     use byoo;

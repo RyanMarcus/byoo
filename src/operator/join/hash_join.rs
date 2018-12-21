@@ -7,7 +7,7 @@ use hash_partition_store::ReadableHashPartitionStore;
 use std::fs::File;
 
 
-const HASHTABLE_SIZE_LIMIT: usize = 4096;
+const HASHTABLE_SIZE_LIMIT: usize = 65536; // 2^16
 
 // TODO both of these Option<>'s can be removed with the
 // addition of substruct that handles the do_join
