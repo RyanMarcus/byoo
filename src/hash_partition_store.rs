@@ -2,7 +2,7 @@ use operator_buffer::OperatorReadBuffer;
 use spillable_store::WritableSpillableStore;
 use std::collections::vec_deque::VecDeque;
 use std::hash::{Hash, Hasher};
-use fnv::{FnvHashMap, FnvHasher};
+use fnv::{FnvHasher};
 use std::cmp;
 
 

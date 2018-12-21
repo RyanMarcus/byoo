@@ -9,6 +9,7 @@ extern crate base64;
 extern crate binary_heap_plus;
 extern crate rand;
 extern crate fnv;
+extern crate hashbrown;
 
 #[cfg_attr(test, macro_use)] 
 extern crate serde_json;
