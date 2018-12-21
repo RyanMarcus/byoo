@@ -1,4 +1,4 @@
-use data::{Data, DataType};
+use data::{Data, DataType, WriteByooDataExt};
 use std::mem;
 use std::fs::File;
 use std::io::{Write, BufWriter, BufReader, Seek, SeekFrom, ErrorKind};
@@ -73,7 +73,7 @@ impl WritableSpillableStore {
         self.did_spill = true;
         
         for d in self.data.iter() {
-            self.writer.write_all(&d.to_bytes()).unwrap();
+            self.writer.write_data(&d).unwrap();
         }
         self.data.clear();
 

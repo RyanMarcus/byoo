@@ -5,6 +5,7 @@ use std::fs::File;
 use byteorder::{WriteBytesExt, LittleEndian};
 use operator::ConstructableOperator;
 use serde_json;
+use data::{WriteByooDataExt};
 
 pub struct ColumnarOutput<T> {
     input: OperatorReadBuffer,
@@ -74,8 +75,7 @@ impl <T: Write> ColumnarOutput<T> {
         for mut col_reader in all_readers {
             iterate_buffer!(col_reader, idx, data, {
                 debug_assert!(idx < num_rows);
-                let bytes = data[0].to_bytes();
-                self.output.write_all(&bytes).unwrap();
+                self.output.write_data(&data[0]).unwrap();
             });
         }
     }

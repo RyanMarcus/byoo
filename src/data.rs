@@ -1,5 +1,6 @@
-use byteorder::{ByteOrder, ReadBytesExt, LittleEndian};
-use std::io::{BufRead, Error, ErrorKind};
+use byteorder::{ReadBytesExt, WriteBytesExt, LittleEndian};
+use std::io::{BufRead, Error, ErrorKind, Result};
+use std::io;
 use base64;
 use std::cmp::Ordering;
 use std::{fmt, ops};
@@ -52,7 +53,7 @@ impl DataType {
         }
     }
     
-    pub fn read_item<T: BufRead>(&self, reader: &mut T) -> Result<Data, Error> {
+    pub fn read_item<T: BufRead>(&self, reader: &mut T) -> Result<Data> {
         match *self {
             DataType::INTEGER => {
                 return reader.read_i64::<LittleEndian>()
@@ -145,37 +146,6 @@ impl Data {
         };
     }
     
-    pub fn to_bytes(&self) -> Vec<u8> {
-        match *self {
-            Data::Integer(i) => {
-                let mut buf = [0; 8];
-                LittleEndian::write_i64(&mut buf, i);
-                return buf.to_vec();
-            },
-
-            Data::Real(f) => {
-                let mut buf = [0; 8];
-                LittleEndian::write_f64(&mut buf, f);
-                return buf.to_vec();
-            },
-
-            Data::Text(ref s) => {
-                let mut to_r = s.as_bytes().to_vec();
-                to_r.push(0);
-                return to_r;
-            },
-
-            Data::Blob(ref b) => {
-                let mut buf = [0; 8];
-                LittleEndian::write_u64(&mut buf, b.len() as u64);
-                let mut to_r = buf.to_vec();
-                to_r.extend(b);
-
-                return to_r;
-            }
-        }
-    }
-
     pub fn into_string(self) -> String {
         match self {
             Data::Integer(i) => i.to_string(),
@@ -194,6 +164,25 @@ impl Data {
         }
     }
 }
+
+pub trait WriteByooDataExt: io::Write {
+    fn write_data(&mut self, data: &Data) -> Result<()> {
+        match *data {
+            Data::Integer(i) => self.write_i64::<LittleEndian>(i),
+            Data::Real(f) => self.write_f64::<LittleEndian>(f),
+            Data::Text(ref s) => {
+                self.write_all(s.as_bytes())?;
+                self.write_all(&[0])
+            },
+                    
+            Data::Blob(ref b) => {
+                self.write_u64::<LittleEndian>(b.len() as u64)?;
+                self.write_all(b)
+            }
+        }
+    }
+}
+impl<W: io::Write + ?Sized> WriteByooDataExt for W {}
 
 impl PartialOrd for Data {
     fn partial_cmp(&self, other: &Data) -> Option<Ordering> {
@@ -269,7 +258,7 @@ impl Hash for Data {
     fn hash<H: Hasher>(&self, state: &mut H) {
         match self {
             Data::Integer(me) => me.hash(state),
-            Data::Real(_) => self.to_bytes().hash(state),
+            Data::Real(me) => (*me as i64).hash(state),
             Data::Text(me) => me.hash(state),
             Data::Blob(me) => me.hash(state)
         };
