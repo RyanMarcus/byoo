@@ -98,6 +98,7 @@ mod tests {
         let (read_buf, _) = root.start_save();
 
         let mut data_vec = read_buf.into_vec();
+        println!("{:?}", data_vec);
         data_vec.sort_by(|a, b| a[0].as_i64().cmp(&b[0].as_i64()));
         
         assert_eq!(data_vec.len(), 5);

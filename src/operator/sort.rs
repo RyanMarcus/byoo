@@ -69,8 +69,10 @@ impl Sort {
             }
             return Ordering::Equal;
         };
-        
+
+        let mut row_count = 0;
         iterate_buffer!(self.input, row, {
+            row_count += 1;
             self.buf.extend_from_slice(row);
 
             if self.buf.len() >= self.buf_size {
@@ -117,13 +119,14 @@ impl Sort {
             bheap.push(r);
         }
 
+        let mut out_row_count = 0;
         while !bheap.is_empty() {
             let mut next_reader = bheap.pop().unwrap();
             {
                 let next_row = next_reader.pop().unwrap();
-
                 // write the row to the output, add the reader
                 // back into the heap.
+                out_row_count += 1;
                 self.output.copy_and_write(next_row);
             }
 
@@ -131,6 +134,8 @@ impl Sort {
                 bheap.push(next_reader);
             }
         }
+
+        assert_eq!(row_count, out_row_count);
     }
 }
 

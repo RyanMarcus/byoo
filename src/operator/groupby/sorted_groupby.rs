@@ -27,6 +27,7 @@ impl SortedGroupBy {
     pub fn start(mut self) {
         let mut last: Option<Vec<Data>> = None;
         iterate_buffer!(self.child, row, {
+            //println!("{:?}", row);
             let curr = &row[self.group_by_col_idx];
             last = match last.take() {
                 None => Some(row.to_vec()),
