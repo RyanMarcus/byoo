@@ -17,7 +17,8 @@ pub struct OperatorWriteBuffer {
     send: Sender<RowBuffer>,
     recv: Receiver<RowBuffer>,
     types: Vec<DataType>,
-    filters: Vec<Predicate>
+    filters: Vec<Predicate>,
+    projection: Option<Vec<usize>>
 }
 
 pub struct PeekableOperatorReadBuffer {
@@ -189,7 +190,8 @@ impl OperatorWriteBuffer {
         
         return OperatorWriteBuffer {
             buffers, send, recv, types,
-            filters: vec![]
+            filters: vec![],
+            projection: None
         };
     }
 
@@ -231,6 +233,10 @@ impl OperatorWriteBuffer {
     pub fn add_filter(&mut self, filter: Predicate) {
         self.filters.push(filter);
     }
+
+    pub fn set_projection(&mut self, cols: Vec<usize>) {
+        self.projection = Some(cols)
+    }
     
     pub fn write(&mut self, row: Vec<Data>) {
         if !self.filters.iter().all(|p| p.eval(&row)) {
@@ -239,7 +245,17 @@ impl OperatorWriteBuffer {
         }
 
         self.prepare_for_write();
-        self.buffers.front_mut().unwrap().write_values(row);
+        if let Some(ref cols) = self.projection {
+            let projected_row = cols.iter()
+                .map(|&col_idx| row[col_idx].clone())
+                .collect();
+            
+            self.buffers.front_mut().unwrap()
+                .write_values(projected_row);
+        } else {
+            self.buffers.front_mut().unwrap()
+                .write_values(row);
+        }
     }
 
     pub fn copy_and_write(&mut self, row: &[Data]) {
@@ -249,7 +265,17 @@ impl OperatorWriteBuffer {
         }
 
         self.prepare_for_write();
-        self.buffers.front_mut().unwrap().copy_and_write_values(row);
+        if let Some(ref cols) = self.projection {
+            let projected_row = cols.iter()
+                .map(|&col_idx| row[col_idx].clone())
+                .collect();
+            
+            self.buffers.front_mut().unwrap()
+                .write_values(projected_row);
+        } else {
+            self.buffers.front_mut().unwrap()
+                .copy_and_write_values(row);
+        }
     }
 
 
@@ -365,6 +391,31 @@ mod tests {
         });
 
         assert_eq!(seen_rows, 1);
+    }
+
+    #[test]
+    fn can_project() {
+        let (mut r, mut w) = make_buffer_pair(5, 10, vec![DataType::INTEGER]);
+        w.set_projection(vec![1]);
+
+        w.write(vec![Data::Integer(-50),  Data::Integer(5)]);
+        w.write(vec![Data::Integer(-90), Data::Integer(6)]);
+        w.write(vec![Data::Integer(1000), Data::Integer(-100)]);
+        w.flush();
+        drop(w);
+
+        let mut seen_rows = 0;
+        iterate_buffer!(r, idx, row, {
+            seen_rows += 1;
+            match idx {
+                0 => { assert_eq!(row[0], Data::Integer(5)); }
+                1 => { assert_eq!(row[0], Data::Integer(6)); }
+                2 => { assert_eq!(row[0], Data::Integer(-100)); }
+                _ => { panic!("Too many values!"); }
+            }
+        });
+
+        assert_eq!(seen_rows, 3);
     }
 
 
