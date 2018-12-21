@@ -180,9 +180,9 @@ fn get_operator_out_type(opcode: &Operator,
 macro_rules! spawn_op {
     ($x: ident, $p1: expr, $p2: expr, $p3: expr, $p4: expr) => {{
         let op = $x::from_buffers($p1, $p2, $p3, $p4);
-        Some(thread::spawn(move || {
+        thread::spawn(move || {
             op.start();
-        }))
+        })
     }}
 }
 
@@ -241,7 +241,7 @@ impl OperatorNode {
     }
 
     pub fn start(self) -> JoinHandle<()> {
-        return self.run(None).unwrap();
+        return self.run(None);
     }
 
     pub fn start_save(self) -> (OperatorReadBuffer, JoinHandle<()>) {
@@ -253,11 +253,11 @@ impl OperatorNode {
         };
 
 
-        return (r, self.run(Some(w)).unwrap());
+        return (r, self.run(Some(w)));
     }
     
-    fn run(self, output: Option<OperatorWriteBuffer>)
-           -> Option<JoinHandle<()>> {
+    fn run(self, mut output: Option<OperatorWriteBuffer>)
+           -> JoinHandle<()> {
 
         // check to see if we need an input or output file
         let f = if self.opcode.requires_input_file() {
@@ -273,6 +273,7 @@ impl OperatorNode {
         // construct the input buffer(s) for this operator
         let mut read_bufs = Vec::new();
         let mut write_bufs = Vec::new();
+
         match self.in_types {
             InType::Known(v) => {
                 for dts in v.iter() {
@@ -288,6 +289,7 @@ impl OperatorNode {
                 panic!("Unknown input types in run for operator {}", self.opcode);
             }
         };
+        
 
         let jh = match self.opcode {
             Operator::Filter => {
@@ -296,10 +298,10 @@ impl OperatorNode {
                 let predicate = Predicate::from_json(
                     &self.options["predicate"]);
 
-                assert_eq!(write_bufs.len(), 1);
-                write_bufs[0].add_filter(predicate);
-                
-                None
+                output.as_mut().unwrap().add_filter(predicate);
+                assert_eq!(self.children.len(), 1);
+                let child = self.children.into_iter().nth(0).unwrap();
+                return child.run(output);
             },
             Operator::CSVOut => spawn_op!(CsvOutput, output, read_bufs, f, self.options),
             Operator::CSVRead => spawn_op!(CsvScan, output, read_bufs, f, self.options),
@@ -319,7 +321,6 @@ impl OperatorNode {
         for (op, wb) in self.children.into_iter().zip(write_bufs) {
             op.run(Some(wb));
         }
-        
         return jh;
     }
 }
