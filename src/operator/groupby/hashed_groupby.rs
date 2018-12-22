@@ -124,7 +124,7 @@ mod tests {
 
         let mut results = r2.into_vec();
         results.sort_by(|a, b| a[0].as_i64().cmp(&b[0].as_i64()));
-
+        assert_eq!(results.len(), 2);
         assert_eq!(
             results[0],
             vec![Data::Integer(1), Data::Integer(1), Data::Integer(2)]
@@ -163,7 +163,7 @@ mod tests {
 
         let mut results = r2.into_vec();
         results.sort_by(|a, b| a[0].as_i64().cmp(&b[0].as_i64()));
-
+        assert_eq!(results.len(), 2);
         assert_eq!(
             results[0],
             vec![
