@@ -9,10 +9,10 @@ use std::fs::File;
 use serde_json;
 
 pub struct Sort {
-    input: OperatorReadBuffer,
+    input: Option<OperatorReadBuffer>,
     output: OperatorWriteBuffer,
     by_cols: Vec<usize>,
-    buf: Vec<Data>,
+    buf: Vec<Vec<Data>>,
     buf_size: usize
 }
 
@@ -20,46 +20,47 @@ impl Sort {
     fn new(input: OperatorReadBuffer, output: OperatorWriteBuffer,
            by_cols: Vec<usize>, buf_size: usize) -> Sort {
         return Sort {
-            input, output, by_cols, buf_size,
+            input: Some(input),
+            output, by_cols, buf_size,
             buf: Vec::with_capacity(buf_size)
         };
     }
 
-    fn sort_and_dump_buf<F>(buf: Vec<Data>,
+    fn sort_and_dump_buf<F>(&mut self,
                             types: &[DataType],
                             sort_fn: F) -> WritableSpillableStore
-    where F: Fn(&&[Data], &&[Data]) -> Ordering {
+    where F: Fn(&Vec<Data>, &Vec<Data>) -> Ordering {
 
-        // TODO at some point we should make push_row take ownership
-        // but for now, we will explicitly drop buf here
-        let to_r = {
-            // sort the buffer
-            let mut by_rows: Vec<&[Data]> = buf
-                .chunks(types.len())
-                .collect();
+        self.buf.sort_unstable_by(sort_fn);
             
-            by_rows.sort_unstable_by(sort_fn);
+        let mut store = WritableSpillableStore::new(
+            1024, types.to_vec());
             
-            let mut store = WritableSpillableStore::new(
-                1024, types.to_vec());
-            
-            for row in by_rows {
-                store.push_row(row);
-            }
-            store
-        };
-        drop(buf);
-
-
-        return to_r;
+        for row in self.buf.iter() {
+            store.push_row(row);
+        }
+        self.buf.clear();
+        
+        return store;
     }
     
     pub fn start(mut self) {
-        let types = self.input.types().to_vec();
+        let types = self.input.as_ref().unwrap().types().to_vec();
         let by_cols = self.by_cols.clone();
         let mut chunks = Vec::new();
 
-        let sort_fn = |el1: &&[Data], el2: &&[Data]| {
+        let sort_fn = |el1: &Vec<Data>, el2: &Vec<Data>| {
+            for &col_idx in by_cols.iter() {
+                match el1[col_idx].partial_cmp(&el2[col_idx]).unwrap() {
+                    Ordering::Greater => { return Ordering::Greater; },
+                    Ordering::Less =>  { return Ordering::Less; }
+                    _ => {}
+                };
+            }
+            return Ordering::Equal;
+        };
+
+        let sort_fn2 = |el1: &[Data], el2: &[Data]| {
             for &col_idx in by_cols.iter() {
                 match el1[col_idx].partial_cmp(&el2[col_idx]).unwrap() {
                     Ordering::Greater => { return Ordering::Greater; },
@@ -71,26 +72,21 @@ impl Sort {
         };
 
         let mut row_count = 0;
-        iterate_buffer!(self.input, row, {
+        let mut inp_buf = self.input.take().unwrap();
+        iterate_buffer!(inp_buf, row, {
             row_count += 1;
-            self.buf.extend_from_slice(row);
+            self.buf.push(row.to_vec());
 
             if self.buf.len() >= self.buf_size {
                 // time to dump this chunk to disk.
-                let mut loc_buf = Vec::with_capacity(self.buf_size);
-                mem::swap(&mut self.buf, &mut loc_buf);
-
-                let r = Sort::sort_and_dump_buf(loc_buf, &types, sort_fn);
+                let r = self.sort_and_dump_buf(&types, sort_fn);
                 chunks.push(r);
             }
         });
 
         // dump the remaining rows in the buffer, if any.
         if !self.buf.is_empty() {
-            let mut loc_buf = Vec::with_capacity(0);
-            mem::swap(&mut self.buf, &mut loc_buf);
-
-            let r = Sort::sort_and_dump_buf(loc_buf, &types, sort_fn);
+            let r = self.sort_and_dump_buf(&types, sort_fn);
             chunks.push(r);
         }
 
@@ -108,8 +104,8 @@ impl Sort {
                  let r2 = h2.peek();
 
                  // reverse here because the heap is a max heap
-                 return sort_fn(&r1.unwrap(),
-                                &r2.unwrap()).reverse();
+                 return sort_fn2(r1.unwrap(),
+                                 r2.unwrap()).reverse();
             });
         
         for r in readers {
@@ -127,7 +123,7 @@ impl Sort {
                 // write the row to the output, add the reader
                 // back into the heap.
                 out_row_count += 1;
-                self.output.copy_and_write(next_row);
+                self.output.write(next_row);
             }
 
             if next_reader.peek().is_some() {
@@ -159,7 +155,7 @@ impl ConstructableOperator for Sort {
             .map(|v| v.as_i64().unwrap() as usize)
             .collect();
         
-        return Sort::new(ib, ob, cols, 4096);//32768);
+        return Sort::new(ib, ob, cols, 4096*4);
     }
 }
 

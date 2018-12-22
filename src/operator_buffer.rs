@@ -141,22 +141,18 @@ impl PeekableOperatorReadBuffer {
             return None;
         }
 
-        if self.curr_idx >= self.dq[0].num_rows() {
-            // we need to look one RowBuffer ahead (the next time
-            // pop() is called, the old one will be removed)
-            let nxt_idx = self.curr_idx - self.dq[0].num_rows();
-            if self.dq.len() < 2 { return None; }
-            if nxt_idx >= self.dq[1].num_rows() {
-                panic!("Next rowbuffer in peek did not have enough rows");
-            }
-
-            return Some(self.dq[1].get_row(nxt_idx));
-        }
-
         return Some(self.dq[0].get_row(self.curr_idx));
     }
 
-    pub fn pop(&mut self) -> Option<&[Data]> {
+    pub fn pop(&mut self) -> Option<Vec<Data>> {
+        if self.dq.len() == 0 { return None; }
+        
+        let to_r = {
+            let row = self.dq[0].get_row(self.curr_idx);
+            Some(row.to_vec())
+        };
+        self.curr_idx += 1;
+
         if self.curr_idx >= self.dq[0].num_rows() {
             // we've hit the end of a rowbuffer.
             self.curr_idx = 0;
@@ -167,11 +163,7 @@ impl PeekableOperatorReadBuffer {
             }
         }
 
-        if self.dq.len() == 0 { return None; }
-        
-        let to_r = self.dq[0].get_row(self.curr_idx);
-        self.curr_idx += 1;
-        return Some(to_r);
+        return to_r;
     }
 }
 
@@ -341,7 +333,7 @@ pub fn make_buffer_pair(num_buffers: usize, buffer_size: usize,
 #[cfg(test)]
 mod tests {
     use predicate::Predicate;
-    use operator_buffer::make_buffer_pair;
+    use operator_buffer::{make_buffer_pair, PeekableOperatorReadBuffer};
     use std::thread;
     use data::{Data, DataType};
 
@@ -371,6 +363,34 @@ mod tests {
             }
         });
 
+        assert_eq!(seen_rows, 3);
+    }
+
+    #[test]
+    fn can_use_peek() {
+        let (r, mut w) = make_buffer_pair(5, 10, vec![DataType::INTEGER]);
+
+        w.write(vec![Data::Integer(5)]);
+        w.write(vec![Data::Integer(6)]);
+        w.write(vec![Data::Integer(-100)]);
+        w.flush();
+        drop(w);
+
+        let mut prdr = PeekableOperatorReadBuffer::new(r);
+        
+        let mut seen_rows = 0;
+
+        while prdr.peek().is_some() {
+            let row = prdr.pop().unwrap();
+            match seen_rows {
+                0 => { assert_eq!(row[0], Data::Integer(5)); }
+                1 => { assert_eq!(row[0], Data::Integer(6)); }
+                2 => { assert_eq!(row[0], Data::Integer(-100)); }
+                _ => { panic!("Too many values!"); }
+            }
+            seen_rows += 1;
+        }
+        
         assert_eq!(seen_rows, 3);
     }
 
