@@ -66,12 +66,12 @@ impl ColumnUnion {
         loop {
             for idx in 0..self.queues.len() {
                 match self.get_value_from_queue(idx) {
-                    Some(row) => { curr_row.extend(row); }
+                    Some(mut row) => { curr_row.append(&mut row); }
                     None => { return; }
                 }
             }
 
-            self.writer.write(curr_row.clone());
+            self.writer.copy_and_write(&curr_row);
             curr_row.clear();
         }
         
