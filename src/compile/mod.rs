@@ -7,7 +7,7 @@ use operator::{ConstructableOperator, Sort, ColumnUnion};
 use operator::output::{CsvOutput, ColumnarOutput};
 use operator::scan::{CsvScan, ColumnarScan};
 use operator::join::{LoopJoin, MergeJoin, HashJoin};
-use operator::groupby::{SortedGroupBy, HashedGroupBy};
+use operator::groupby::{SortedGroupBy, HashedGroupBy, AllRowsGroupBy};
 use agg;
 use std::fs::File;
 use std::fmt;
@@ -18,7 +18,7 @@ use std::thread::JoinHandle;
 enum Operator {
     Union, Project, Filter, LoopJoin, MergeJoin, HashJoin,
     Sort, ColumnarRead, CSVRead, CSVOut, ColumnarOut,
-    SortedGroupBy, HashedGroupBy
+    SortedGroupBy, HashedGroupBy, AllRowsGroupBy
 }
 
 impl Operator {
@@ -37,6 +37,7 @@ impl Operator {
             "columnar out" => Operator::ColumnarOut,
             "sorted group by" => Operator::SortedGroupBy,
             "hashed group by" => Operator::HashedGroupBy,
+            "all rows group by" => Operator::AllRowsGroupBy,
             _ => panic!("invalid opcode")
         };
     }
@@ -75,7 +76,8 @@ impl fmt::Display for Operator {
             Operator::CSVOut => write!(f, "csv out"),
             Operator::ColumnarOut => write!(f, "columnar out"),
             Operator::SortedGroupBy => write!(f, "sorted group by"),
-            Operator::HashedGroupBy => write!(f, "hashed group by")
+            Operator::HashedGroupBy => write!(f, "hashed group by"),
+            Operator::AllRowsGroupBy => write!(f, "all rows group by")
         }
     }
 }
@@ -95,6 +97,7 @@ fn inputs_per_op(op: &str) -> ChildCount {
         "columnar out" => ChildCount::Specific(1),
         "sorted group by" => ChildCount::Specific(1),
         "hashed group by" => ChildCount::Specific(1),
+        "all rows group by" => ChildCount::Specific(1),
         _ => panic!("unknown op code")
     };
 }
@@ -161,7 +164,9 @@ fn get_operator_out_type(opcode: &Operator,
                     .collect());
         },
         Operator::ColumnarOut | Operator::CSVOut => return OutType::None,
-        Operator::SortedGroupBy | Operator::HashedGroupBy => {
+        Operator::SortedGroupBy
+            | Operator::HashedGroupBy
+            | Operator::AllRowsGroupBy => {
             let mut input_types = in_types[0].clone();
 
             for agg_type in options["aggregates"].as_array().unwrap() {
@@ -327,7 +332,8 @@ impl OperatorNode {
             Operator::Sort => spawn_op!(Sort, output, read_bufs, f, self.options),
             Operator::Union => spawn_op!(ColumnUnion, output, read_bufs, f, self.options),
             Operator::SortedGroupBy => spawn_op!(SortedGroupBy, output, read_bufs, f, self.options),
-            Operator::HashedGroupBy => spawn_op!(HashedGroupBy, output, read_bufs, f, self.options)
+            Operator::HashedGroupBy => spawn_op!(HashedGroupBy, output, read_bufs, f, self.options),
+            Operator::AllRowsGroupBy => spawn_op!(AllRowsGroupBy, output, read_bufs, f, self.options)
         };
 
         //  next, we have to start the children.
