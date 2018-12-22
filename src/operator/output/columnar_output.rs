@@ -64,8 +64,8 @@ impl <T: Write + Seek> ColumnarOutput<T> {
             self.output.write_u16::<LittleEndian>(dt.types[0].to_code()).unwrap();
         }
 
-        // compute the column offsets
-        let header_size = (1 + 2 + 8 + all_stats.len()*2 + all_stats.len()*8) as u64;
+        // compute the header size (data before column offsets)
+        let header_size = (1 + 2 + 8 + all_stats.len()*2) as u64;
 
         // write zeros for the column offsets for now
         for _ in all_stats.iter() {
@@ -78,12 +78,15 @@ impl <T: Write + Seek> ColumnarOutput<T> {
         for mut col_reader in all_readers {
             let mut f = tempfile().unwrap();
 
-            let mut snp_wrt = snap::Writer::new(f.try_clone().unwrap());
-            iterate_buffer!(col_reader, idx, data, {
-                assert!(idx < num_rows);
-                snp_wrt.write_data(&data[0]).unwrap();
-            });
-
+            // this extra scope ensures snp_wrt gets fully flushed
+            {
+                let mut snp_wrt = snap::Writer::new(f.try_clone().unwrap());
+                iterate_buffer!(col_reader, idx, data, {
+                    assert!(idx < num_rows);
+                    snp_wrt.write_data(&data[0]).unwrap();
+                });
+            }
+            
             f.seek(SeekFrom::Start(0)).unwrap();
             let num_bytes = io::copy(&mut f, &mut self.output).unwrap();
             column_sizes.push(num_bytes);
@@ -91,10 +94,10 @@ impl <T: Write + Seek> ColumnarOutput<T> {
 
         // go and fill in the column offest data
         self.output.seek(SeekFrom::Start(header_size)).unwrap();
-        let mut accum = header_size;
+        let mut accum = header_size + 8*all_stats.len() as u64;
         for offset in column_sizes {
-            accum += offset;
             self.output.write_u64::<LittleEndian>(accum).unwrap();
+            accum += offset;
         }
     }
 }

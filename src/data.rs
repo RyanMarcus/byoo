@@ -165,7 +165,7 @@ pub trait ReadByooDataExt: io::BufRead {
                 }
                 
                 // pop off the null
-                str_buf.pop();
+                assert_eq!(str_buf.pop().unwrap(), 0);
 
                 return Ok(Data::Text(String::from_utf8(str_buf).unwrap()));
             },

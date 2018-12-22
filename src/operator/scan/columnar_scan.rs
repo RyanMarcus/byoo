@@ -36,19 +36,24 @@ impl <T: BufRead + Seek> ColumnarScan<T> {
         
         // next is the column data types
         let mut datatypes = Vec::with_capacity(num_columns);
-        self.reader.read_u16_into::<LittleEndian>(&mut datatypes).unwrap();
+        for _ in 0..num_columns {
+            datatypes.push(self.reader.read_u16::<LittleEndian>().unwrap());
+        }
 
         // next is the column offsets
         let mut offsets = Vec::with_capacity(num_columns);
-        self.reader.read_u64_into::<LittleEndian>(&mut offsets).unwrap();
+        for _ in 0..num_columns {
+            offsets.push(self.reader.read_u64::<LittleEndian>().unwrap());
+        }
 
 
         let datatype = DataType::from_code(datatypes[self.col_idx]);
         let offset = offsets[self.col_idx];
-        self.reader.seek(SeekFrom::Current(offset as i64)).unwrap();
+        self.reader.seek(SeekFrom::Start(offset as u64)).unwrap();
 
+        let mut snp_read = BufReader::new(snap::Reader::new(self.reader));
         for _ in 0..num_rows {
-            let data = self.reader.read_data(&datatype).unwrap();
+            let data = snp_read.read_data(&datatype).unwrap();
             self.buffer.write(vec![data]);
         }
         
@@ -63,7 +68,7 @@ impl ConstructableOperator for ColumnarScan<BufReader<File>> {
         assert!(input.is_empty());
         let out = output.unwrap();
         let f = file.unwrap();
-        let col_idx = options["column index"]
+        let col_idx = options["col"]
             .as_i64().unwrap() as usize;
 
         return ColumnarScan::new(BufReader::new(f), col_idx, out);

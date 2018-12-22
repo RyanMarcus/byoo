@@ -156,7 +156,11 @@ fn get_operator_out_type(opcode: &Operator,
         Operator::Sort | Operator::Filter => {
             return OutType::Known(in_types[0].clone());
         },
-        Operator::ColumnarRead | Operator::CSVRead => {
+        Operator::ColumnarRead => {
+            return OutType::Known(vec![DataType::from_string_code(
+                options["type"].as_str().unwrap())]);
+        },
+        Operator::CSVRead => {
             return OutType::Known(
                 options["types"].as_array().unwrap()
                     .iter()
