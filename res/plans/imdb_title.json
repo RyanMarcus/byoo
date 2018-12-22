@@ -1,0 +1,14 @@
+{ "op": "columnar out",
+  "options": { "file": "inputs/imdb/imdb_title.byoo" },
+  "input": [{
+      "op": "sort",
+      "options": { "cols": [0] },
+      "input": [{
+          "op": "csv read",
+          "options": {
+              "file": "inputs/imdb/imdb_title.csv",
+              "types": ["INTEGER", "INTEGER", "INTEGER"]
+          }
+      }]
+  }]
+}

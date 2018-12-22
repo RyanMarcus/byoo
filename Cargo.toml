@@ -3,6 +3,14 @@ name = "byoo"
 version = "0.1.0"
 authors = ["Ryan Marcus <ryan@rmarcus.info>"]
 
+[lib]
+name = "byoo"
+path = "src/lib.rs"
+
+[[bin]]
+name = "byoo"
+path = "frontend/bin.rs"
+
 [dependencies]
 byteorder = "1"
 matches = "0.1.8"
