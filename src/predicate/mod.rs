@@ -83,7 +83,7 @@ impl Predicate {
                 let c2_p = Predicate::from_json(&children[1]);
 
                 return Predicate::Or(Box::new(c1_p),
-                                      Box::new(c2_p));
+                                     Box::new(c2_p));
             }
 
             "not" => {
@@ -150,68 +150,50 @@ impl Predicate {
     pub fn eval(&self, data: &[Data]) -> bool {
         return self.eval_with_2(data, &[]);
     }
-    
-    pub fn eval_with_2(&self, data: &[Data], data2: &[Data]) -> bool {
+
+    pub fn eval_with_accessor<'a, F>(&self, accessor_func: &F) -> bool
+    where F: Fn(usize) -> &'a Data {
         match &self {
             Predicate::And(p1, p2) => {
-                return p1.eval_with_2(data, data2) && p2.eval_with_2(data, data2);
+                return p1.eval_with_accessor(accessor_func) && p2.eval_with_accessor(accessor_func);
             }
 
             Predicate::Or(p1, p2) => {
-                return p1.eval_with_2(data, data2) || p2.eval_with_2(data, data2);
+                return p1.eval_with_accessor(accessor_func) || p2.eval_with_accessor(accessor_func);
             },
 
             Predicate::Not(p1) => {
-                return !p1.eval_with_2(data, data2);
+                return !p1.eval_with_accessor(accessor_func);
             },
 
             Predicate::Lt(col_idx, val) => {
-                return apply_op!(val,
-                                 overflow_access!(data, data2,
-                                                  *col_idx)
-                                 , <);
+                return apply_op!(val, accessor_func(*col_idx), <);
             },
 
             Predicate::LtCol(col_idx, col2_idx) => {
-                return overflow_access!(data, data2,
-                                        *col_idx)
-                    <
-                    overflow_access!(data, data2,
-                                     *col2_idx);
+                return accessor_func(*col_idx) < accessor_func(*col2_idx);
             },
             
             Predicate::Gt(col_idx, val) => {
-                return apply_op!(val,
-                                 overflow_access!(data, data2,
-                                                  *col_idx)
-                                 , >);
+                return apply_op!(val, accessor_func(*col_idx), >);
             },
             
             Predicate::GtCol(col_idx, col2_idx) => {
-                return overflow_access!(data, data2,
-                                        *col_idx)
-                    >
-                    overflow_access!(data, data2,
-                                     *col2_idx);
+                return accessor_func(*col_idx) > accessor_func(*col2_idx);
             },
 
             Predicate::Eq(col_idx, val) => {
-                return apply_op!(val,
-                                 overflow_access!(data, data2,
-                                                  *col_idx)
-                                 , ==);
+                return apply_op!(val, accessor_func(*col_idx), ==);
             },
 
             Predicate::EqCol(col_idx, col2_idx) => {
-                let v1 = overflow_access!(data, data2,
-                                          *col_idx);
-                let v2 = overflow_access!(data, data2,
-                                          *col2_idx);
+                let v1 = accessor_func(*col_idx);
+                let v2 = accessor_func(*col2_idx);
                 return v1 == v2;
             },
 
             Predicate::Contains(col_idx, string_val) => {
-                let d = overflow_access!(data, data2, *col_idx);
+                let d = accessor_func(*col_idx);
                 if let Data::Text(ref s) = d {
                     return s.contains(string_val);
                 }
@@ -220,6 +202,11 @@ impl Predicate {
             }
             
         }
+    }
+    
+    pub fn eval_with_2(&self, data: &[Data], data2: &[Data]) -> bool {
+        let f = |idx: usize| { overflow_access!(data, data2, idx) };
+        return self.eval_with_accessor(&f);
     }
 }
 

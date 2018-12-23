@@ -3,6 +3,7 @@ use std::sync::mpsc::{Sender, Receiver, channel};
 use std::collections::VecDeque;
 use row_buffer::{RowBuffer};
 use data::{Data, DataType};
+use std::io::{Write, Error};
 
 
 pub struct OperatorReadBuffer {
@@ -268,6 +269,39 @@ impl OperatorWriteBuffer {
             self.buffers.front_mut().unwrap()
                 .copy_and_write_values(row);
         }
+    }
+
+    pub fn copy_and_write_from(&mut self, num_rows: usize, bufs: &[&[Data]]) {
+        // first, make sure we have an empty buffer
+        self.send_buffer();
+        self.ensure_buffer();
+
+        
+        let ub = self.buffers.front_mut().unwrap();
+        {
+            let target_vec = ub.raw_data_mut();
+            debug_assert!(target_vec.is_empty());
+            
+            for row_idx in 0..num_rows {
+                let acc_func = |idx: usize| { &bufs[idx][row_idx] };
+
+                if !self.filters.iter().all(|p| p.eval_with_accessor(&acc_func)) {
+                    // row is filtered out
+                    continue;
+                }
+
+                if let Some(ref cols) = self.projection {
+                    for &col in cols.iter() {
+                        target_vec.push(bufs[col][row_idx].clone());
+                    }
+                } else {
+                    for buf in bufs {
+                        target_vec.push(buf[row_idx].clone());
+                    }
+                }
+            }
+        }
+        ub.recompute_row_count();
     }
 
 

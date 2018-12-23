@@ -4,7 +4,8 @@ use std::mem;
 pub struct RowBuffer {
     types: Vec<DataType>,
     data: Vec<Data>,
-    max_rows: usize
+    max_rows: usize,
+    num_rows: usize
 }
 
 impl RowBuffer {
@@ -13,12 +14,13 @@ impl RowBuffer {
         return RowBuffer {
             types,
             data: Vec::with_capacity(capacity),
-            max_rows: row_capacity
+            max_rows: row_capacity,
+            num_rows: 0
         }
     }
 
     pub fn is_full(&self) -> bool {
-        return self.num_rows() == self.max_rows;
+        return self.num_rows == self.max_rows;
     }
 
     pub fn is_empty(&self) -> bool {
@@ -26,11 +28,12 @@ impl RowBuffer {
     }
 
     pub fn num_rows(&self) -> usize {
-        return self.data.len() / self.types.len();
+        return self.num_rows;
     }
 
     pub fn clear(&mut self) {
         self.data.clear();
+        self.num_rows = 0;
     }
 
     pub fn into_copy(&mut self) -> RowBuffer {
@@ -40,8 +43,21 @@ impl RowBuffer {
         return RowBuffer {
             types: self.types.clone(),
             data: tmp,
-            max_rows: self.max_rows
+            max_rows: self.max_rows,
+            num_rows: self.num_rows
         };
+    }
+
+    pub fn raw_data(&self) -> &[Data] {
+        return &self.data;
+    }
+
+    pub fn raw_data_mut(&mut self) -> &mut Vec<Data> {
+        return &mut self.data;
+    }
+
+    pub fn recompute_row_count(&mut self) {
+        self.num_rows = self.data.len() / self.types.len();
     }
 
     pub fn get_row(&self, row: usize) -> &[Data] {
@@ -61,7 +77,6 @@ impl RowBuffer {
         self.data.push(d);
     }
 
-
     #[cfg(debug_assertions)]
     pub fn write_values(&mut self, data: Vec<Data>) {
         debug_assert!(data.len() == self.types.len());
@@ -70,15 +85,19 @@ impl RowBuffer {
         for d in data {
             self.write_value(d);
         }
+
+        self.num_rows += 1;
     }
 
     #[cfg(not(debug_assertions))]
     pub fn write_values(&mut self, mut data: Vec<Data>) {
         self.data.append(&mut data);
+        self.num_rows += 1;
     }
 
     pub fn copy_and_write_values(&mut self, data: &[Data]) {
         self.data.extend_from_slice(data);
+        self.num_rows += 1;
     }
     
     pub fn iter(&self) -> RowBufferIterator {
@@ -132,13 +151,13 @@ mod tests {
     fn fills() {
         let mut rb = RowBuffer::new(vec![DataType::INTEGER], 3);
         
-        rb.write_value(Data::Integer(5));
+        rb.write_values(vec![Data::Integer(5)]);
         assert!(!rb.is_full());
 
-        rb.write_value(Data::Integer(6));
+        rb.write_values(vec![Data::Integer(6)]);
         assert!(!rb.is_full());
 
-        rb.write_value(Data::Integer(7));
+        rb.write_values(vec![Data::Integer(7)]);
         assert!(rb.is_full());
     }
 
@@ -146,16 +165,13 @@ mod tests {
     fn fills_with_width() {
         let mut rb = RowBuffer::new(vec![DataType::INTEGER, DataType::REAL], 3);
         
-        rb.write_value(Data::Integer(5));
-        rb.write_value(Data::Real(5.5));
+        rb.write_values(vec![Data::Integer(5), Data::Real(5.5)]);
         assert!(!rb.is_full());
 
-        rb.write_value(Data::Integer(6));
-        rb.write_value(Data::Real(5.5));
+        rb.write_values(vec![Data::Integer(6), Data::Real(5.5)]);
         assert!(!rb.is_full());
 
-        rb.write_value(Data::Integer(7));
-        rb.write_value(Data::Real(5.5));
+        rb.write_values(vec![Data::Integer(7), Data::Real(5.5)]);
         assert!(rb.is_full());
     }
 
@@ -166,22 +182,19 @@ mod tests {
                                          DataType::TEXT,
                                          DataType::BLOB], 3);
         
-        rb.write_value(Data::Integer(5));
-        rb.write_value(Data::Real(5.5));
-        rb.write_value(Data::Text(String::from("Hello!")));
-        rb.write_value(Data::Blob(vec![5, 23, 95]));
+        rb.write_values(vec![Data::Integer(5), Data::Real(5.5),
+                             Data::Text(String::from("Hello!")),
+                             Data::Blob(vec![5, 23, 95])]);
         assert!(!rb.is_full());
 
-        rb.write_value(Data::Integer(6));
-        rb.write_value(Data::Real(5.5));
-        rb.write_value(Data::Text(String::from("Hello!")));
-        rb.write_value(Data::Blob(vec![5, 23, 95]));
+        rb.write_values(vec![Data::Integer(5), Data::Real(5.5),
+                             Data::Text(String::from("Hello!")),
+                             Data::Blob(vec![5, 23, 95])]);
         assert!(!rb.is_full());
 
-        rb.write_value(Data::Integer(7));
-        rb.write_value(Data::Real(5.5));
-        rb.write_value(Data::Text(String::from("Hello!")));
-        rb.write_value(Data::Blob(vec![5, 23, 95]));
+        rb.write_values(vec![Data::Integer(5), Data::Real(5.5),
+                             Data::Text(String::from("Hello!")),
+                             Data::Blob(vec![5, 23, 95])]);
         assert!(rb.is_full());
     }
 
@@ -191,23 +204,20 @@ mod tests {
                                          DataType::REAL,
                                          DataType::TEXT,
                                          DataType::BLOB], 3);
-        
-        rb.write_value(Data::Integer(5));
-        rb.write_value(Data::Real(5.5));
-        rb.write_value(Data::Text(String::from("Hello!")));
-        rb.write_value(Data::Blob(vec![89, 23, 95]));
+
+        rb.write_values(vec![Data::Integer(5), Data::Real(5.5),
+                             Data::Text(String::from("Hello!")),
+                             Data::Blob(vec![89, 23, 95])]);
         assert!(!rb.is_full());
 
-        rb.write_value(Data::Integer(6));
-        rb.write_value(Data::Real(6.5));
-        rb.write_value(Data::Text(String::from("World!")));
-        rb.write_value(Data::Blob(vec![5, 27, 95]));
+        rb.write_values(vec![Data::Integer(6), Data::Real(6.5),
+                             Data::Text(String::from("World!")),
+                             Data::Blob(vec![5, 27, 95])]);
         assert!(!rb.is_full());
 
-        rb.write_value(Data::Integer(7));
-        rb.write_value(Data::Real(7.5));
-        rb.write_value(Data::Text(String::from("Testing!")));
-        rb.write_value(Data::Blob(vec![5, 23, 96]));
+        rb.write_values(vec![Data::Integer(7), Data::Real(7.5),
+                             Data::Text(String::from("Testing!")),
+                             Data::Blob(vec![5, 23, 96])]);
         assert!(rb.is_full());
 
         let mut num_iter = 0;

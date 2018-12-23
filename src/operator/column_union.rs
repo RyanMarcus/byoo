@@ -1,84 +1,100 @@
 use operator_buffer::{OperatorReadBuffer, OperatorWriteBuffer};
+use row_buffer::RowBuffer;
 use operator::ConstructableOperator;
 use data::{Data};
 use std::collections::VecDeque;
 use serde_json;
 use std::fs::File;
+use std::usize;
 
 pub struct ColumnUnion {
     readers: Vec<OperatorReadBuffer>,
-    writer: OperatorWriteBuffer,
-    queues: Vec<VecDeque<Vec<Data>>>
-        
+    writer: OperatorWriteBuffer
 }
 
 impl ColumnUnion {
     pub fn new(readers: Vec<OperatorReadBuffer>,
                writer: OperatorWriteBuffer) -> ColumnUnion {
-        let mut v = Vec::new();
-        for _ in 0..readers.len() {
-            v.push(VecDeque::new());
-        }
         
         return ColumnUnion {
-            readers, writer, queues: v
+            readers, writer
         };
     }
-
-    fn get_value_from_queue(&mut self, idx: usize) -> Option<Vec<Data>> {
-        // fetch a row from the deque at the given index. If the deque is empty,
-        // try to add another block to it from the underlying readers. If there's
-        // no more data to be read, return None.
-        
-        let q = &mut self.queues[idx];
-        match q.pop_front() {
-            None => {
-                // try to get another block.
-                let rdr = &mut self.readers[idx];
-                
-                let to_r = {
-                    let new_block = rdr.data();
-                    match new_block {
-                        None => None,
-                        Some(rb) => {
-                            for row in rb.iter() {
-                                q.push_back(row.to_vec());
-                            }
-                            
-                            Some(q.pop_front().unwrap())
-                        }
-                    }
-                };
-
-                rdr.progress();
-                return to_r;
-            },
-            Some(row) => { return Some(row); }
-        };
-    }
-
+   
     pub fn start(mut self) {
-        // loop through each VecDeque, adding more columns to our current row.
-        // when we hit an empty VecDeque, try to read more blocks into it. If we
-        // don't have any more blocks, we're done! (truncate to shortest relation,
-        // meaning the relation with the fewest rows)
-        let mut curr_row = Vec::new();
+        if self.readers.iter().all(|r| r.types().len() == 1) {
+            // use the specialized form
+            self.do_single_width_columns();
+        } else {
+            // use the regular form
+            self.do_multi_width_columns();
+        }
+    }
+
+    fn do_single_width_columns(mut self) {
+        let result_width = self.readers.len();
+
         loop {
-            for idx in 0..self.queues.len() {
-                match self.get_value_from_queue(idx) {
-                    Some(mut row) => { curr_row.append(&mut row); }
-                    None => { return; }
+            {
+                let mut bufs: Vec<&[Data]> = Vec::with_capacity(result_width);
+                let mut fewest_rows = std::usize::MAX;
+                for rdr in self.readers.iter_mut() {
+                    if let Some(buf) = rdr.data() {
+                        bufs.push(buf.raw_data());
+                        fewest_rows = std::cmp::min(buf.num_rows(), fewest_rows);
+                    } else {
+                        return;
+                    }
                 }
+
+                self.writer.copy_and_write_from(fewest_rows, &bufs);
             }
 
-            self.writer.copy_and_write(&curr_row);
-            curr_row.clear();
+            for rdr in self.readers.iter_mut() {
+                rdr.progress();
+            }
+            
         }
-        
+    }
+
+    fn do_multi_width_columns(mut self) {
+        let result_width: usize = self.readers.iter()
+            .map(|r| r.types().len()).sum();
+        let mut row = Vec::with_capacity(result_width);
+        loop {
+            {
+                let mut bufs: Vec<&mut RowBuffer> = Vec::new();
+                for rdr in self.readers.iter_mut() {
+                    if let Some(buf) = rdr.data() {
+                        bufs.push(buf);
+                    } else {
+                        return;
+                    }
+                }
+                
+                let result_height = bufs.iter()
+                    .map(|b| b.num_rows())
+                    .min().unwrap();
+
+
+                for row_idx in 0..result_height {
+                    for rb in bufs.iter() {
+                        row.extend_from_slice(rb.get_row(row_idx));
+                    }
+                    self.writer.copy_and_write(&row);
+                    row.clear();
+                }
+            }
+            
+            for rdr in self.readers.iter_mut() {
+                rdr.progress();
+            }
+
+        }   
     }
 }
 
-impl ConstructableOperator for ColumnUnion {
+impl  ConstructableOperator for ColumnUnion {
     fn from_buffers(output: Option<OperatorWriteBuffer>,
                     input: Vec<OperatorReadBuffer>,
                     file: Option<File>,
@@ -131,6 +147,89 @@ mod tests {
         });
 
         assert_eq!(rc, 3);
+    }
 
+    #[test]
+    fn combines_two_columns_multibuf() {
+        let (mut r, w) = make_buffer_pair(5, 10, vec![DataType::INTEGER,
+                                                      DataType::INTEGER]);
+
+        let (r1, mut w1) = make_buffer_pair(5, 10, vec![DataType::INTEGER]);
+        let (r2, mut w2) = make_buffer_pair(5, 10, vec![DataType::INTEGER]);
+
+        let cunion = ColumnUnion::new(vec![r1, r2], w);
+
+        for i in 0..45 {
+            w1.write(vec![Data::Integer(i)]);
+        }
+        drop(w1);
+
+        for i in 0..45 {
+            w2.write(vec![Data::Integer(i*2)]);
+        }
+        drop(w2);
+
+        cunion.start();
+
+        let mut rc = 0;
+        iterate_buffer!(r, row, {
+            rc += 1;
+            if let Data::Integer(i) = row[0] {
+                if let Data::Integer(j) = row[1] {
+                    assert_eq!(i*2, j);
+                } else {
+                    panic!("Wrong datatype.");
+                }
+            } else {
+                panic!("Wrong datatype.");
+            }
+        });
+
+        assert_eq!(rc, 45);
+    }
+
+     #[test]
+    fn combines_multicolumns_multibuf() {
+        let (mut r, w) = make_buffer_pair(5, 10, vec![DataType::INTEGER,
+                                                      DataType::INTEGER,
+                                                      DataType::INTEGER]);
+
+        let (r1, mut w1) = make_buffer_pair(5, 10, vec![DataType::INTEGER]);
+        let (r2, mut w2) = make_buffer_pair(5, 10, vec![DataType::INTEGER, DataType::INTEGER]);
+
+        let cunion = ColumnUnion::new(vec![r1, r2], w);
+
+        for i in 0..45 {
+            w1.write(vec![Data::Integer(i)]);
+        }
+        drop(w1);
+
+        for i in 0..45 {
+            w2.write(vec![Data::Integer(i*2), Data::Integer(i*3)]);
+        }
+        drop(w2);
+
+        cunion.start();
+
+        let mut rc = 0;
+        iterate_buffer!(r, row, {
+            rc += 1;
+            if let Data::Integer(i) = row[0] {
+                if let Data::Integer(j) = row[1] {
+                    if let Data::Integer(k) = row[2] {
+                        assert_eq!(i*2, j);
+                        assert_eq!(i*3, k);
+                    } else {
+                        panic!("Wrong datatype.");
+                    }
+                } else {
+                    panic!("Wrong datatype.");
+                }
+            } else {
+                panic!("Wrong datatype.");
+            }
+        });
+
+        assert_eq!(rc, 45);
     }
 }
