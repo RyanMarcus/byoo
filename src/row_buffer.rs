@@ -39,6 +39,7 @@ impl RowBuffer {
     pub fn into_copy(&mut self) -> RowBuffer {
         let mut tmp = Vec::with_capacity(self.data.capacity());
         mem::swap(&mut self.data, &mut tmp);
+        self.num_rows = 0;
 
         return RowBuffer {
             types: self.types.clone(),
@@ -59,11 +60,28 @@ impl RowBuffer {
     pub fn recompute_row_count(&mut self) {
         self.num_rows = self.data.len() / self.types.len();
     }
+    
+    pub fn split_off(&mut self, row_idx: usize) -> RowBuffer {
+        let tmp = self.data.split_off(row_idx * self.types.len());
+        let tmp_len = tmp.len();
+        return RowBuffer {
+            types: self.types.clone(),
+            data: tmp,
+            max_rows: self.max_rows,
+            num_rows: tmp_len / self.types.len()
+        };
+    }
 
     pub fn get_row(&self, row: usize) -> &[Data] {
         return &self.data[row*self.types.len()..(row+1)*self.types.len()];
     }
 
+    pub fn write_single_col(&mut self, d: Data) {
+        debug_assert_eq!(self.types.len(), 1);
+        self.data.push(d);
+        self.num_rows += 1;
+    }
+    
     #[cfg(any(test, debug_assertions))]
     fn write_value(&mut self, d: Data) {
         debug_assert!(!self.is_full());

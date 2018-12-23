@@ -113,7 +113,6 @@ impl OperatorReadBuffer {
     }
 }
 
-
 impl PeekableOperatorReadBuffer {
     pub fn new(read_buf: OperatorReadBuffer) -> PeekableOperatorReadBuffer {
         let mut to_r = PeekableOperatorReadBuffer {
@@ -143,6 +142,56 @@ impl PeekableOperatorReadBuffer {
         }
 
         return Some(self.dq[0].get_row(self.curr_idx));
+    }
+
+    pub fn pop_while_equal(&mut self, cols: &[usize]) -> Option<Vec<RowBuffer>> {
+        let first_row = match self.pop() {
+            Some(r) => r,
+            None => { return None; }
+        };
+
+        self.curr_idx += 1;
+        let mut curr_block = 0;
+        
+        'outer: while curr_block < self.dq.len() {
+            for row_idx in self.curr_idx..self.dq[curr_block].num_rows() {
+                let candidate_row = self.dq[curr_block].get_row(row_idx);
+
+                let matches = cols.iter()
+                    .all(|&col_idx| first_row[col_idx] == candidate_row[col_idx]);
+
+                if !matches {
+                    self.curr_idx = row_idx;
+                    break 'outer;
+                }
+            }
+
+            // we hit the end of the block. pull in a new one and keep checking...
+            self.load_next_block();
+            curr_block += 1;
+            self.curr_idx = 0;
+        }
+
+        // we need to return all of the rows between the head of the deque
+        // and the self.curr_idx row of the curr_block block.
+        let mut to_r = Vec::new();
+        for _ in 0..curr_block {
+            to_r.push(self.dq.pop_front().unwrap());
+        }
+
+        if self.curr_idx == 0 {
+            // very lucky -- we stopped right on a buffer boundary.
+            return Some(to_r);
+        }
+
+        // not so lucky -- we need to take the first self.curr_idx - 1 rows
+        // of this row buffer and put them into our result.
+        let mut curr_front = self.dq.pop_front().unwrap();
+        let tmp = curr_front.split_off(self.curr_idx);
+        self.dq.push_front(tmp);
+        to_r.push(curr_front);
+
+        return Some(to_r);
     }
 
     pub fn pop(&mut self) -> Option<Vec<Data>> {
@@ -229,6 +278,24 @@ impl OperatorWriteBuffer {
 
     pub fn set_projection(&mut self, cols: Vec<usize>) {
         self.projection = Some(cols)
+    }
+
+    pub fn write_single_col(&mut self, row: Data) {
+        debug_assert_eq!(self.types.len(), 1);
+        self.prepare_for_write();
+        {
+            let acc = |idx: usize| {
+                debug_assert!(idx == 0);
+                return &row
+            };
+            
+            if !self.filters.iter().all(|p| p.eval_with_accessor(&acc)) {
+                return;
+            }
+        }
+
+        self.buffers.front_mut().unwrap()
+            .write_single_col(row);
     }
     
     pub fn write(&mut self, row: Vec<Data>) {

@@ -60,7 +60,7 @@ impl MergeJoin {
                      cols: &[usize]) -> Option<Vec<Vec<Data>>> {
         let first_row = match buf.pop() {
             None => { return None; },
-            Some(e) => e.to_vec()
+            Some(e) => e
         };
 
         let mut to_r = Vec::new();
@@ -82,7 +82,7 @@ impl MergeJoin {
             }
 
             // we match the previous rows on the predicate columns.
-            to_r.push(buf.pop().unwrap().to_vec());
+            to_r.push(buf.pop().unwrap());
         }
 
         return Some(to_r);

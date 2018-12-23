@@ -54,7 +54,7 @@ impl <T: BufRead + Seek> ColumnarScan<T> {
         let mut snp_read = BufReader::new(snap::Reader::new(self.reader));
         for _ in 0..num_rows {
             let data = snp_read.read_data(&datatype).unwrap();
-            self.buffer.write(vec![data]);
+            self.buffer.write_single_col(data);
         }
         
     }
