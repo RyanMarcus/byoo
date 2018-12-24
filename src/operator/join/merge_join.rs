@@ -24,6 +24,7 @@ fn matches_on_cols(r1: &[Data], r2: &[Data], cols: &[usize]) -> bool {
             return false;
         }
     }
+    
 
     return true;
 }
@@ -65,7 +66,7 @@ impl MergeJoin {
 
         let mut to_r = Vec::new();
         to_r.push(first_row);
-
+        
         loop {
             if let Some(r) = buf.peek() {
                 if !matches_on_cols(&to_r[0], r, cols) {
