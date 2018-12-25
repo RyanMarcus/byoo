@@ -39,14 +39,16 @@ impl RowBuffer {
     pub fn into_copy(&mut self) -> RowBuffer {
         let mut tmp = Vec::with_capacity(self.data.capacity());
         mem::swap(&mut self.data, &mut tmp);
-        self.num_rows = 0;
-
-        return RowBuffer {
+        
+        let to_r =  RowBuffer {
             types: self.types.clone(),
             data: tmp,
             max_rows: self.max_rows,
             num_rows: self.num_rows
         };
+
+        self.num_rows = 0;
+        return to_r;
     }
 
     pub fn raw_data(&self) -> &[Data] {

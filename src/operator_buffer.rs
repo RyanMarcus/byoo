@@ -134,6 +134,7 @@ impl PeekableOperatorReadBuffer {
         if !self.dq.is_empty() {
             self.read_buf.progress();
         }
+
     }
 
     pub fn peek(&self) -> Option<&[Data]> {
