@@ -1,6 +1,6 @@
 # byoo
 
-**This project should be regarded as "alpha" quality. Documentation is sparse. I hope to a full, 1.0 release ready sometime in May or June of 2019.**
+**This project should be regarded as "alpha" quality. Documentation is sparse. I hope to have a full, 1.0 release ready sometime in May or June of 2019.**
 
 This is *byoo*, the **b**ring **y**our **o**wn **o**ptimizer execution engine. byoo (pronounced "bio") is a simple, entirely modular, high performance relational database execution engine designed for optimizer research purposes.
 
