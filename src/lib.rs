@@ -31,7 +31,8 @@ extern crate fnv;
 extern crate hashbrown;
 extern crate snap;
 
-#[cfg_attr(test, macro_use)] 
+
+#[macro_use] 
 extern crate serde_json;
 
 extern crate either;

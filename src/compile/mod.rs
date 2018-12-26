@@ -34,11 +34,29 @@ use std::thread;
 use std::thread::JoinHandle;
 
 
+
 enum Operator {
     Union, Project, Filter, LoopJoin, MergeJoin, HashJoin,
     Sort, ColumnarRead, CSVRead, CSVOut, ColumnarOut,
     SortedGroupBy, HashedGroupBy, AllRowsGroupBy
 }
+
+static OPERATOR_LIST: &[Operator] = &[
+    Operator::Union,
+    Operator::Project,
+    Operator::Filter,
+    Operator::LoopJoin,
+    Operator::MergeJoin,
+    Operator::HashJoin,
+    Operator::Sort,
+    Operator::ColumnarRead,
+    Operator::CSVRead,
+    Operator::CSVOut,
+    Operator::ColumnarOut,
+    Operator::SortedGroupBy,
+    Operator::HashedGroupBy,
+    Operator::AllRowsGroupBy
+];
 
 impl Operator {
     fn from_opcode(opcode: &str) -> Operator {
@@ -475,9 +493,32 @@ pub fn tree_to_gv(root: &OperatorNode) -> String {
 }
 
 #[cfg(test)]
+fn generate_operator_info() -> serde_json::Value {
+    let mut values = serde_json::Map::new();
+
+    for op in OPERATOR_LIST {
+        let op_name = op.to_string();
+        let c_count = match inputs_per_op(op_name.as_str()) {
+            ChildCount::Any => String::from("any"),
+            ChildCount::None => String::from("none"),
+            ChildCount::Specific(i) => i.to_string()
+        };
+
+        let req_input_file = op.requires_input_file();
+        let req_output_file = op.requires_output_file();
+
+        values.insert(op_name, json!({ "child count": c_count,
+                                        "input file": req_input_file,
+                                        "output file": req_output_file}));
+    }
+    
+    return serde_json::Value::Object(values);
+}
+
+#[cfg(test)]
 mod tests {
 
-    use compile::{tree_to_gv, create_op_tree};
+    use compile::{tree_to_gv, create_op_tree, generate_operator_info};
     use serde_json;
     
     #[test]
@@ -515,5 +556,11 @@ mod tests {
         assert!(gv.contains("columnar out"));
         assert!(gv.contains("project"));
         assert!(gv.contains("csv read"));
+    }
+
+    #[test]
+    fn generate_op_info() {
+        let json = generate_operator_info();
+        println!("{}", json.to_string());
     }
 }
