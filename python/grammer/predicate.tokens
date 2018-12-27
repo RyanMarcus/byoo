@@ -1,0 +1,13 @@
+T__0=1
+T__1=2
+STRING_LITERAL=3
+NOT=4
+C_OP=5
+L_OP=6
+LITERAL=7
+TABLE=8
+COL=9
+WS=10
+'('=1
+')'=2
+'not'=4

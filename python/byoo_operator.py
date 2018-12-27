@@ -104,20 +104,21 @@ class ByooOperator:
         return to_r
 
 
-byoo = ByooOperatorBuilder()
+if __name__ == "__main__":
+    byoo = ByooOperatorBuilder()
 
-scan1 = (byoo.csv_read()
-         .file("res/inputs/test1.csv")
-         .types("iitir"))
-scan2 = (byoo.csv_read()
-         .file("res/inputs/test2.csv")
-         .types("it"))
+    scan1 = (byoo.csv_read()
+             .file("res/inputs/test1.csv")
+             .types("iitir"))
+    scan2 = (byoo.csv_read()
+             .file("res/inputs/test2.csv")
+             .types("it"))
 
-hj = (byoo.hash_join(scan1, scan2)
-      .left_cols([0])
-      .right_cols([0]))
+    hj = (byoo.hash_join(scan1, scan2)
+          .left_cols([0])
+          .right_cols([0]))
 
-proj = (byoo.project(hj)
-        .cols([0, 5]))
+    proj = (byoo.project(hj)
+            .cols([0, 5]))
 
-print(json.dumps(proj.to_json(), indent=2))
+    print(json.dumps(proj.to_json(), indent=2))
